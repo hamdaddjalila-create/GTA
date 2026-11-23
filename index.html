@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clio 4 3D Driving Experience</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            overflow: hidden;
+            background-color: #0b0f19;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* واجهة المعلومات العلوية */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+        .panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 12px 18px;
+            border-radius: 12px;
+            pointer-events: auto;
+        }
+        .car-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #f8fafc;
+        }
+        .car-sub {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .speedometer {
+            text-align: center;
+            min-width: 110px;
+        }
+        #speed-val {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #38bdf8;
+            line-height: 1;
+        }
+        .speed-unit {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+        }
+        /* أزرار التحكم السريعة */
+        .controls-bar {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        button.action-btn {
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: 0.2s;
+        }
+        button.action-btn:hover {
+            background: #334155;
+        }
+        button.action-btn.active {
+            background: #0284c7;
+            border-color: #38bdf8;
+        }
+        /* تعليمات الكيبورد */
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+        }
+        /* أزرار اللمس للهواتف */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .touch-group {
+            display: flex;
+            gap: 12px;
+            pointer-events: auto;
+        }
+        .touch-btn {
+            width: 62px;
+            height: 62px;
+            border-radius: 50%;
+            background: rgba(30, 41, 59, 0.75);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            color: white;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+        .touch-btn:active {
+            background: rgba(56, 189, 248, 0.6);
+            transform: scale(0.95);
+        }
+        @media (max-width: 768px) {
+            #instructions { display: none; }
+            #mobile-controls { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="hud">
+    <div class="panel">
+        <div class="car-title">Renault Clio IV - White Edition</div>
+        <div class="car-sub">محاكاة قيادة ثلاثية الأبعاد</div>
+        <div class="controls-bar">
+            <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
+            <button class="action-btn" id="btn-cam" onclick="switchCamera()">تغيير الكاميرا</button>
+            <button class="action-btn" onclick="resetCar()">إعادة الضبط</button>
+        </div>
+    </div>
+
+    <div class="panel speedometer">
+        <div id="speed-val">0</div>
+        <div class="speed-unit">كم / ساعة</div>
+    </div>
+</div>
+
+<div id="instructions" class="panel">
+    التحكم: الأسهم أو <b>W A S D</b> للقيادة | <b>Space</b> للفرامل اليدوية | <b>L</b> للمصابيح | <b>C</b> للكاميرا
+</div>
+
+<div id="mobile-controls">
+    <div class="touch-group">
+        <div class="touch-btn" id="btn-right">→</div>
+        <div class="touch-btn" id="btn-left">←</div>
+    </div>
+    <div class="touch-group">
+        <div class="touch-btn" id="btn-down">↓</div>
+        <div class="touch-btn" id="btn-up">↑</div>
+    </div>
+</div>
+
+<!-- مكتبة Three.js من CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // 1. إعداد المشهد والكاميرا والمصيّر
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1120);
+    scene.fog = new THREE.FogExp2(0x0b1120, 0.0065);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // 2. الإضاءة
+    const ambientLight = new THREE.AmbientLight(0x475569, 0.9);
+    scene.add(ambientLight);
+
+    const moonLight = new THREE.DirectionalLight(0xe2e8f0, 0.9);
+    moonLight.position.set(40, 80, 30);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.near = 10;
+    moonLight.shadow.camera.far = 250;
+    const d = 80;
+    moonLight.shadow.camera.left = -d;
+    moonLight.shadow.camera.right = d;
+    moonLight.shadow.camera.top = d;
+    moonLight.shadow.camera.bottom = -d;
+    scene.add(moonLight);
+
+    // 3. بناء البيئة والطريق
+    const groundGeo = new THREE.PlaneGeometry(1200, 1200);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // الطريق الرئيسي الدائري والمستقيم
+    function createRoadSegment(width, length, x, z, rotY = 0) {
+        const roadGroup = new THREE.Group();
+        const roadGeo = new THREE.PlaneGeometry(width, length);
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.75 });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        road.position.y = 0.02;
+        road.receiveShadow = true;
+        roadGroup.add(road);
+
+        // خطوط الطريق المتقطعة
+        const dashGeo = new THREE.PlaneGeometry(0.25, 3.5);
+        const dashMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+        for (let i = -length / 2 + 5; i < length / 2 - 5; i += 9) {
+            const dash = new THREE.Mesh(dashGeo, dashMat);
+            dash.rotation.x = -Math.PI / 2;
+            dash.position.set(0, 0.03, i);
+            roadGroup.add(dash);
+        }
+
+        // الأرصفة الجانبية
+        const curbGeo = new THREE.BoxGeometry(0.6, 0.25, length);
+        const curbMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
+        const leftCurb = new THREE.Mesh(curbGeo, curbMat);
+        leftCurb.position.set(-width / 2 - 0.3, 0.12, 0);
+        leftCurb.receiveShadow = true;
+        const rightCurb = leftCurb.clone();
+        rightCurb.position.x = width / 2 + 0.3;
+        roadGroup.add(leftCurb, rightCurb);
+
+        roadGroup.position.set(x, 0, z);
+        roadGroup.rotation.y = rotY;
+        scene.add(roadGroup);
+    }
+
+    // شبكة طرق متقاطعة
+    createRoadSegment(14, 400, 0, 0, 0);
+    createRoadSegment(14, 400, 120, 0, 0);
+    createRoadSegment(14, 400, -120, 0, 0);
+    createRoadSegment(14, 400, 0, 120, Math.PI / 2);
+    createRoadSegment(14, 400, 0, -120, Math.PI / 2);
+
+    // أعمدة إنارة ومبانٍ محيطة لإعطاء إحساس بالسرعة والواقعية
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    const buildingColors = [0x1e293b, 0x172033, 0x263248];
+
+    for (let z = -180; z <= 180; z += 45) {
+        if (Math.abs(z - 120) < 15 || Math.abs(z + 120) < 15) continue;
+
+        // أعمدة إنارة
+        [-8.2, 8.2].forEach(xPos => {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 6.5), poleMat);
+            pole.position.set(xPos, 3.25, z);
+            pole.castShadow = true;
+            scene.add(pole);
+
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.1), poleMat);
+            arm.position.set(xPos + (xPos > 0 ? -0.6 : 0.6), 6.4, z);
+            scene.add(arm);
+
+            const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.25), bulbMat);
+            lamp.position.set(xPos + (xPos > 0 ? -1.2 : 1.2), 6.32, z);
+            scene.add(lamp);
+        });
+
+        // مبانٍ على الجانبين
+        [-26, 26].forEach((bx, idx) => {
+            const h = 10 + Math.abs(Math.sin(z + idx)) * 22;
+            const bGeo = new THREE.BoxGeometry(16, h, 22);
+            const bMat = new THREE.MeshStandardMaterial({
+                color: buildingColors[(Math.abs(z) + idx) % buildingColors.length],
+                roughness: 0.8
+            });
+            const building = new THREE.Mesh(bGeo, bMat);
+            building.position.set(bx, h / 2, z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+        });
+    }
+
+    // 4. تصميم مجسم سيارة Renault Clio 4 البيضاء بدقة
+    const car = new THREE.Group();
+
+    // الخامات (أبيض لامع، زجاج داكن، جنوط رمادية، إطارات، مصابيح)
+    const whitePaint = new THREE.MeshPhysicalMaterial({
+        color: 0xf8fafc,
+        metalness: 0.15,
+        roughness: 0.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    });
+    const darkGlass = new THREE.MeshPhysicalMaterial({
+        color: 0x0f172a,
+        metalness: 0.1,
+        roughness: 0.1,
+        transmission: 0.4,
+        transparent: true,
+        opacity: 0.88
+    });
+    const blackTrim = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 });
+    const greyDiffuser = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5, metalness: 0.3 });
+    const rimGrey = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.25 });
+    const tireRubber = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.85 });
+    const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0x991b1b, emissiveIntensity: 1.5 });
+    const headLightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe0f2fe, emissiveIntensity: 2.0 });
+
+    // الهيكل السفلي الرئيسي (هاتشباك)
+    const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.58, 4.06), whitePaint);
+    lowerBody.position.set(0, 0.58, 0);
+    lowerBody.castShadow = true;
+    lowerBody.receiveShadow = true;
+    car.add(lowerBody);
+
+    // المقصورة العلوية المائلة (تصميم Clio 4 الانسيابي)
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.52, 2.35), whitePaint);
+    cabin.position.set(0, 1.08, -0.22);
+    cabin.castShadow = true;
+    car.add(cabin);
+
+    // الزجاج الأمامي المائل
+    const frontWindshield = new THREE.Mesh(new THREE.PlaneGeometry(1.48, 0.85), darkGlass);
+    frontWindshield.position.set(0, 1.06, 1.08);
+    frontWindshield.rotation.x = -Math.PI / 3.1;
+    car.add(frontWindshield);
+
+    // الزجاج الخلفي المائل
+    const rearWindshield = new THREE.Mesh(new THREE.PlaneGeometry(1.42, 0.68), darkGlass);
+    rearWindshield.position.set(0, 1.08, -1.45);
+    rearWindshield.rotation.x = Math.PI / 3.6;
+    rearWindshield.rotation.y = Math.PI;
+    car.add(rearWindshield);
+
+    // النوافذ الجانبية الداكنة
+    const sideWindowGeo = new THREE.PlaneGeometry(2.05, 0.42);
+    const leftWindow = new THREE.Mesh(sideWindowGeo, darkGlass);
+    leftWindow.position.set(0.8, 1.08, -0.2);
+    leftWindow.rotation.y = Math.PI / 2;
+    const rightWindow = leftWindow.clone();
+    rightWindow.position.x = -0.8;
+    rightWindow.rotation.y = -Math.PI / 2;
+    car.add(leftWindow, rightWindow);
+
+    // الجناح الخلفي العلوي (Rear Spoiler) كما في الصورة
+    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.46, 0.08, 0.28), whitePaint);
+    spoiler.position.set(0, 1.33, -1.46);
+    car.add(spoiler);
+
+    // المشتت الخلفي الرمادي (Rear Diffuser) أسفل الصدام
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.24, 0.14), greyDiffuser);
+    diffuser.position.set(0, 0.36, -2.01);
+    car.add(diffuser);
+
+    // الحواف السفلية الجانبية (Side Skirts) مع اللمسة الكرومية
+    const sideTrimGeo = new THREE.BoxGeometry(0.06, 0.08, 2.1);
+    const leftTrim = new THREE.Mesh(sideTrimGeo, greyDiffuser);
+    leftTrim.position.set(0.93, 0.38, 0);
+    const rightTrim = leftTrim.clone();
+    rightTrim.position.x = -0.93;
+    car.add(leftTrim, rightTrim);
+
+    // الشبك الأمامي الأسود وشعار رينو
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.22, 0.08), blackTrim);
+    grille.position.set(0, 0.62, 2.02);
+    car.add(grille);
+
+    const badgeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.1 });
+    const frontBadge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.06), badgeMat);
+    frontBadge.position.set(0, 0.65, 2.04);
+    const rearBadge = frontBadge.clone();
+    rearBadge.position.set(0, 0.78, -2.04);
+    car.add(frontBadge, rearBadge);
+
+    // المرايا الجانبية
+    const mirrorGeo = new THREE.BoxGeometry(0.22, 0.13, 0.18);
+    const leftMirror = new THREE.Mesh(mirrorGeo, whitePaint);
+    leftMirror.position.set(0.98, 0.92, 0.75);
+    const rightMirror = leftMirror.clone();
+    rightMirror.position.x = -0.98;
+    car.add(leftMirror, rightMirror);
+
+    // هوائي السقف الخلفي (Antenna)
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.02, 0.28), blackTrim);
+    antenna.position.set(0, 1.45, -1.15);
+    antenna.rotation.x = -0.35;
+    car.add(antenna);
+
+    // المصابيح الأمامية والخلفية المميزة لـ Clio 4
+    const headLightGeo = new THREE.BoxGeometry(0.38, 0.14, 0.1);
+    const hlLeft = new THREE.Mesh(headLightGeo, headLightMat);
+    hlLeft.position.set(0.64, 0.66, 2.01);
+    const hlRight = hlLeft.clone();
+    hlRight.position.x = -0.64;
+    car.add(hlLeft, hlRight);
+
+    const tailLightGeo = new THREE.BoxGeometry(0.46, 0.18, 0.1);
+    const tlLeft = new THREE.Mesh(tailLightGeo, tailLightMat);
+    tlLeft.position.set(0.62, 0.76, -2.01);
+    const tlRight = tlLeft.clone();
+    tlRight.position.x = -0.62;
+    car.add(tlLeft, tlRight);
+
+    // أضواء كاشفة حقيقية تضيء الطريق أمام السيارة
+    const spotLightL = new THREE.SpotLight(0xe0f2fe, 2.8, 75, Math.PI / 5, 0.4, 1);
+    spotLightL.position.set(0.64, 0.68, 1.95);
+    spotLightL.target.position.set(0.64, 0.2, 22);
+    car.add(spotLightL, spotLightL.target);
+
+    const spotLightR = new THREE.SpotLight(0xe0f2fe, 2.8, 75, Math.PI / 5, 0.4, 1);
+    spotLightR.position.set(-0.64, 0.68, 1.95);
+    spotLightR.target.position.set(-0.64, 0.2, 22);
+    car.add(spotLightR, spotLightR.target);
+
+    // بناء العجلات الأربع مع الجنوط الرمادية الخماسية
+    const wheels = [];
+    const frontWheelPivots = [];
+
+    function createWheel(x, y, z, isFront) {
+        const pivot = new THREE.Group();
+        pivot.position.set(x, y, z);
+
+        const wheelMesh = new THREE.Group();
+
+        // الإطار المطاطي
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 28), tireRubber);
+        tire.rotation.z = Math.PI / 2;
+        tire.castShadow = true;
+        wheelMesh.add(tire);
+
+        // الجنط الرمادي
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.25, 16), rimGrey);
+        rim.rotation.z = Math.PI / 2;
+        wheelMesh.add(rim);
+
+        // أذرع الجنط الرياضية (5 أذرع)
+        for (let i = 0; i < 5; i++) {
+            const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.045, 0.42), rimGrey);
+            spoke.rotation.x = (i * Math.PI) / 2.5;
+            wheelMesh.add(spoke);
+        }
+
+        pivot.add(wheelMesh);
+        car.add(pivot);
+        wheels.push(wheelMesh);
+        if (isFront) frontWheelPivots.push(pivot);
+    }
+
+    createWheel(0.86, 0.34, 1.28, true);   // أمامي يسار
+    createWheel(-0.86, 0.34, 1.28, true);  // أمامي يمين
+    createWheel(0.86, 0.34, -1.28, false); // خلفي يسار
+    createWheel(-0.86, 0.34, -1.28, false);// خلفي يمين
+
+    scene.add(car);
+
+    // 5. فيزياء القيادة والتحكم
+    const keys = { up: false, down: false, left: false, right: false, brake: false };
+    let speed = 0;
+    let steeringAngle = 0;
+    const maxSpeed = 1.35;
+    const maxReverse = -0.45;
+    const accel = 0.022;
+    const friction = 0.012;
+    const brakeForce = 0.05;
+    let lightsOn = true;
+    let cameraMode = 0; // 0: خلفية، 1: قريبة/سقف، 2: علوية
+
+    // أحداث لوحة المفاتيح
+    window.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'arrowup' || k === 'w') keys.up = true;
+        if (k === 'arrowdown' || k === 's') keys.down = true;
+        if (k === 'arrowleft' || k === 'a') keys.left = true;
+        if (k === 'arrowright' || k === 'd') keys.right = true;
+        if (e.code === 'Space') keys.brake = true;
+        if (k === 'l') toggleLights();
+        if (k === 'c') switchCamera();
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'arrowup' || k === 'w') keys.up = false;
+        if (k === 'arrowdown' || k === 's') keys.down = false;
+        if (k === 'arrowleft' || k === 'a') keys.left = false;
+        if (k === 'arrowright' || k === 'd') keys.right = false;
+        if (e.code === 'Space') keys.brake = false;
+    });
+
+    // أحداث اللمس للهواتف
+    function bindTouch(id, prop) {
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[prop] = true; });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); keys[prop] = false; });
+    }
+    bindTouch('btn-up', 'up');
+    bindTouch('btn-down', 'down');
+    bindTouch('btn-left', 'left');
+    bindTouch('btn-right', 'right');
+
+    function toggleLights() {
+        lightsOn = !lightsOn;
+        spotLightL.visible = lightsOn;
+        spotLightR.visible = lightsOn;
+        headLightMat.emissiveIntensity = lightsOn ? 2.0 : 0.1;
+        tailLightMat.emissiveIntensity = lightsOn ? 1.5 : 0.2;
+        const btn = document.getElementById('btn-lights');
+        btn.textContent = lightsOn ? 'المصابيح: تشغيل' : 'المصابيح: إيقاف';
+        btn.classList.toggle('active', lightsOn);
+    }
+
+    function switchCamera() {
+        cameraMode = (cameraMode + 1) % 3;
+    }
+
+    function resetCar() {
+        car.position.set(0, 0, 0);
+        car.rotation.set(0, 0, 0);
+        speed = 0;
+        steeringAngle = 0;
+    }
+
+    // 6. حلقة التحديث والرسم (Animation Loop)
+    const speedDisplay = document.getElementById('speed-val');
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // التسارع والفرملة
+        if (keys.up) {
+            speed = Math.min(speed + accel, maxSpeed);
+        } else if (keys.down) {
+            speed = Math.max(speed - accel, maxReverse);
+        } else {
+            if (speed > 0) speed = Math.max(0, speed - friction);
+            if (speed < 0) speed = Math.min(0, speed + friction);
+        }
+
+        if (keys.brake) {
+            if (speed > 0) speed = Math.max(0, speed - brakeForce);
+            if (speed < 0) speed = Math.min(0, speed + brakeForce);
+            tailLightMat.emissiveIntensity = 3.5; // إضاءة فرامل قوية
+        } else {
+            tailLightMat.emissiveIntensity = lightsOn ? 1.5 : 0.2;
+        }
+
+        // الانعطاف
+        const targetSteer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+        steeringAngle += (targetSteer * 0.42 - steeringAngle) * 0.15;
+
+        // تدوير العجلات الأمامية يميناً ويساراً
+        frontWheelPivots.forEach(pivot => {
+            pivot.rotation.y = steeringAngle;
+        });
+
+        // تحريك السيارة وتدوير العجلات للأمام/الخلف
+        if (Math.abs(speed) > 0.001) {
+            const turnDirection = speed >= 0 ? 1 : -1;
+            car.rotation.y += steeringAngle * 0.045 * (Math.abs(speed) / maxSpeed) * turnDirection;
+            car.position.x += Math.sin(car.rotation.y) * speed;
+            car.position.z += Math.cos(car.rotation.y) * speed;
+
+            wheels.forEach(w => {
+                w.rotation.x += speed * 2.8;
+            });
+        }
+
+        // تحديث عداد السرعة
+        speedDisplay.textContent = Math.round(Math.abs(speed) * 115);
+
+        // تحديث موقع الكاميرا بسلاسة
+        let camOffset;
+        if (cameraMode === 0) {
+            camOffset = new THREE.Vector3(0, 2.7, -6.2); // كاميرا خلفية
+        } else if (cameraMode === 1) {
+            camOffset = new THREE.Vector3(0, 1.55, 0.2); // منظور السائق / السقف
+        } else {
+            camOffset = new THREE.Vector3(0, 12, -10);  // منظور علوي
+        }
+
+        camOffset.applyMatrix4(car.matrixWorld);
+        camera.position.lerp(camOffset, 0.12);
+
+        const lookTarget = new THREE.Vector3(0, 1.0, cameraMode === 1 ? 15 : 4);
+        lookTarget.applyMatrix4(car.matrixWorld);
+        camera.lookAt(lookTarget);
+
+        renderer.render(scene, camera);
+    }
+
+    // التجاوب مع تغيير حجم الشاشة
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+
+</body>
+</html>
