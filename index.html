@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - Endless US City 3D</title>
+    <title>Clio 4 - Realistic Buildings & Traffic 3D</title>
     <style>
         * {
             margin: 0;
@@ -145,7 +145,7 @@
 <div id="hud">
     <div class="panel">
         <div class="car-title">Renault Clio IV — Endless US City</div>
-        <div class="car-sub">مدينة لا تنتهي، مشاة بأطراف متحركة، وشوارع أمريكية</div>
+        <div class="car-sub">بنايات بنوافذ وتفاصيل، سيارات مرور، ومشاة</div>
         <div class="controls-bar">
             <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
             <button class="action-btn" id="btn-time" onclick="toggleDayNight()">الوضع: ليلي</button>
@@ -186,7 +186,7 @@
     const dayBg = 0x7dd3fc;
 
     scene.background = new THREE.Color(nightBg);
-    scene.fog = new THREE.FogExp2(nightBg, 0.0042);
+    scene.fog = new THREE.FogExp2(nightBg, 0.004);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -229,7 +229,11 @@
     const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
     const lampBulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-    const buildingColors = [0x1e293b, 0x172033, 0x263349, 0x1a2436];
+    const buildingPalette = [0x243044, 0x2d3748, 0x1e293b, 0x334155, 0x293548];
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.3 });
+    const litWindowMat = new THREE.MeshBasicMaterial({ color: 0xfde68a });
+    const darkWindowMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2, metalness: 0.6 });
+
     const pedestrianShirts = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0xa855f7, 0xec4899];
     const pedestrianPants = [0x1e293b, 0x334155, 0x0f172a, 0x475569];
     const skinTones = [0xf1c27d, 0xe0ac69, 0x8d5524, 0xc68642];
@@ -241,6 +245,7 @@
     const cityTiles = [];
     const trafficLightGroups = [];
     const pedestrians = [];
+    const buildingWindows = [];
 
     function createRoadStrip(length, rotY) {
         const strip = new THREE.Group();
@@ -292,7 +297,59 @@
         return strip;
     }
 
-    // بناء شخصية مشاة بمفاصل ذراعين وساقين متحركة ورأس وجذع
+    // بناء بناية بتفاصيل معمارية ونوافذ وسقف
+    function createDetailedBuilding(w, h, d, colorHex, seed) {
+        const bGroup = new THREE.Group();
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.75, metalness: 0.15 })
+        );
+        body.position.y = h / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        bGroup.add(body);
+
+        // حافة علوية بارزة للسقف
+        const cornice = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.55, d + 0.7), trimMat);
+        cornice.position.y = h + 0.25;
+        cornice.castShadow = true;
+        bGroup.add(cornice);
+
+        // قاعدة سفلية للمبنى
+        const basePlinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 1.4, d + 0.4), trimMat);
+        basePlinth.position.y = 0.7;
+        bGroup.add(basePlinth);
+
+        // صفوف النوافذ على الواجهات الأمامية والخلفية
+        const floors = Math.floor((h - 3.5) / 3.4);
+        const cols = Math.max(2, Math.floor((w - 4) / 3.6));
+        const winGeo = new THREE.PlaneGeometry(1.3, 1.65);
+
+        for (let f = 0; f < floors; f++) {
+            const wy = 2.8 + f * 3.4;
+            for (let c = 0; c < cols; c++) {
+                const wx = -((cols - 1) * 3.2) / 2 + c * 3.2;
+                const isLit = ((seed * 13 + f * 7 + c * 5) % 4) !== 0;
+                const mat = isLit ? litWindowMat : darkWindowMat;
+
+                const frontWin = new THREE.Mesh(winGeo, mat);
+                frontWin.position.set(wx, wy, d / 2 + 0.04);
+                bGroup.add(frontWin);
+
+                const backWin = new THREE.Mesh(winGeo, mat);
+                backWin.position.set(wx, wy, -d / 2 - 0.04);
+                backWin.rotation.y = Math.PI;
+                bGroup.add(backWin);
+
+                buildingWindows.push({ mesh: frontWin, isLit });
+                buildingWindows.push({ mesh: backWin, isLit });
+            }
+        }
+
+        return bGroup;
+    }
+
     function createPedestrian(shirtColor, pantsColor, skinColor) {
         const person = new THREE.Group();
         const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.7 });
@@ -300,19 +357,16 @@
         const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.55 });
         const shoeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
 
-        // الجذع
         const torso = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.62, 0.24), shirtMat);
         torso.position.y = 1.05;
         torso.castShadow = true;
         person.add(torso);
 
-        // الرأس
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 14), skinMat);
         head.position.y = 1.55;
         head.castShadow = true;
         person.add(head);
 
-        // محور الساق اليسرى واليمنى
         function makeLimbPivot(x, y, w, h, mat, hasShoe = false) {
             const pivot = new THREE.Group();
             pivot.position.set(x, y, 0);
@@ -401,16 +455,10 @@
         ];
 
         quadOffsets.forEach(([qx, qz], qIdx) => {
-            const h = 12 + Math.abs(Math.sin((seedIndex + 1) * 1.7 + qIdx)) * 28;
-            const bGeo = new THREE.BoxGeometry(28, h, 28);
-            const bMat = new THREE.MeshStandardMaterial({
-                color: buildingColors[(seedIndex + qIdx) % buildingColors.length],
-                roughness: 0.8
-            });
-            const building = new THREE.Mesh(bGeo, bMat);
-            building.position.set(qx, h / 2, qz);
-            building.castShadow = true;
-            building.receiveShadow = true;
+            const h = 14 + Math.abs(Math.sin((seedIndex + 1) * 1.7 + qIdx)) * 24;
+            const colorHex = buildingPalette[(seedIndex + qIdx) % buildingPalette.length];
+            const building = createDetailedBuilding(28, h, 28, colorHex, seedIndex * 7 + qIdx);
+            building.position.set(qx, 0, qz);
             tile.add(building);
 
             const lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 6.6), poleMat);
@@ -464,7 +512,7 @@
         }
     }
 
-    // 4. سيارة Renault Clio 4 البيضاء
+    // 4. سيارة اللاعب Renault Clio 4 البيضاء
     const car = new THREE.Group();
     const carBodyGroup = new THREE.Group();
     car.add(carBodyGroup);
@@ -589,17 +637,17 @@
     const wheels = [];
     const frontWheelPivots = [];
 
-    function createWheel(x, y, z, isFront) {
+    function createWheel(x, y, z, isFront, targetGroup = car, wheelArray = wheels) {
         const pivot = new THREE.Group();
         pivot.position.set(x, y, z);
 
         const wheelMesh = new THREE.Group();
-        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 28), tireRubber);
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 24), tireRubber);
         tire.rotation.z = Math.PI / 2;
         tire.castShadow = true;
         wheelMesh.add(tire);
 
-        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.25, 16), rimGrey);
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.25, 14), rimGrey);
         rim.rotation.z = Math.PI / 2;
         wheelMesh.add(rim);
 
@@ -610,9 +658,9 @@
         }
 
         pivot.add(wheelMesh);
-        car.add(pivot);
-        wheels.push(wheelMesh);
-        if (isFront) frontWheelPivots.push(pivot);
+        targetGroup.add(pivot);
+        wheelArray.push(wheelMesh);
+        if (isFront && targetGroup === car) frontWheelPivots.push(pivot);
     }
 
     createWheel(0.86, 0.34, 1.28, true);
@@ -622,7 +670,79 @@
 
     scene.add(car);
 
-    // 5. التحكم والفيزياء
+    // 5. سيارات أخرى تسير في الطريق (AI Traffic Cars)
+    const trafficColors = [0xef4444, 0x2563eb, 0x10b981, 0xf59e0b, 0x64748b, 0xe11d48, 0x0ea5e9];
+    const trafficCars = [];
+
+    function createTrafficCar(colorHex) {
+        const tGroup = new THREE.Group();
+        const paint = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.4 });
+        const tWheels = [];
+
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.56, 4.1), paint);
+        chassis.position.y = 0.58;
+        chassis.castShadow = true;
+        tGroup.add(chassis);
+
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.48, 2.2), paint);
+        roof.position.set(0, 1.06, -0.2);
+        roof.castShadow = true;
+        tGroup.add(roof);
+
+        const glass = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.38, 1.9), darkGlass);
+        glass.position.set(0, 1.04, -0.2);
+        tGroup.add(glass);
+
+        const fLight = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), headLightMat);
+        const fLightR = fLight.clone();
+        fLight.position.set(0.62, 0.65, 2.06);
+        fLightR.position.set(-0.62, 0.65, 2.06);
+
+        const rLight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.08), tailLightMat);
+        const rLightR = rLight.clone();
+        rLight.position.set(0.62, 0.72, -2.06);
+        rLightR.position.set(-0.62, 0.72, -2.06);
+        tGroup.add(fLight, fLightR, rLight, rLightR);
+
+        createWheel(0.85, 0.34, 1.25, false, tGroup, tWheels);
+        createWheel(-0.85, 0.34, 1.25, false, tGroup, tWheels);
+        createWheel(0.85, 0.34, -1.25, false, tGroup, tWheels);
+        createWheel(-0.85, 0.34, -1.25, false, tGroup, tWheels);
+
+        scene.add(tGroup);
+        return { mesh: tGroup, wheels: tWheels };
+    }
+
+    function spawnTrafficCar(tCar, idx) {
+        // اختيار مسار قريب من السيارة في اتجاه شمال/جنوب أو شرق/غرب
+        const alongZ = idx % 2 === 0;
+        const dir = idx % 4 < 2 ? 1 : -1;
+        const laneOffset = dir > 0 ? 3.8 : -3.8;
+
+        const baseGridX = Math.round(car.position.x / TILE_SIZE) * TILE_SIZE;
+        const baseGridZ = Math.round(car.position.z / TILE_SIZE) * TILE_SIZE;
+        const spread = ((idx % 3) - 1) * TILE_SIZE;
+
+        if (alongZ) {
+            tCar.mesh.position.set(baseGridX + spread + laneOffset, 0, car.position.z + dir * (45 + (idx % 3) * 35));
+            tCar.mesh.rotation.y = dir > 0 ? 0 : Math.PI;
+            tCar.axis = 'z';
+        } else {
+            tCar.mesh.position.set(car.position.x + dir * (45 + (idx % 3) * 35), 0, baseGridZ + spread + laneOffset);
+            tCar.mesh.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+            tCar.axis = 'x';
+        }
+        tCar.dir = dir;
+        tCar.speed = 0.36 + (idx % 3) * 0.08;
+    }
+
+    for (let i = 0; i < 6; i++) {
+        const tCar = createTrafficCar(trafficColors[i % trafficColors.length]);
+        spawnTrafficCar(tCar, i);
+        trafficCars.push(tCar);
+    }
+
+    // 6. التحكم والفيزياء
     const keys = { up: false, down: false, left: false, right: false, brake: false };
     let speed = 0;
     let steeringAngle = 0;
@@ -688,17 +808,23 @@
             dirLight.intensity = 1.4;
             ground.material.color.setHex(0x475569);
             asphaltMat.color.setHex(0x27303f);
+            buildingWindows.forEach(w => {
+                w.mesh.material = darkWindowMat;
+            });
             btn.textContent = 'الوضع: نهاري';
             btn.classList.add('active');
         } else {
             scene.background = new THREE.Color(nightBg);
-            scene.fog = new THREE.FogExp2(nightBg, 0.0042);
+            scene.fog = new THREE.FogExp2(nightBg, 0.004);
             ambientLight.color.setHex(0x52607a);
             ambientLight.intensity = 0.95;
             dirLight.color.setHex(0xe2e8f0);
             dirLight.intensity = 0.95;
             ground.material.color.setHex(0x0b101b);
             asphaltMat.color.setHex(0x1e2430);
+            buildingWindows.forEach(w => {
+                w.mesh.material = w.isLit ? litWindowMat : darkWindowMat;
+            });
             btn.textContent = 'الوضع: ليلي';
             btn.classList.remove('active');
         }
@@ -709,7 +835,7 @@
     }
 
     function resetCar() {
-        car.position.set(3.5, 0, -25);
+        car.position.set(3.8, 0, -25);
         car.rotation.set(0, 0, 0);
         carBodyGroup.rotation.set(0, 0, 0);
         speed = 0;
@@ -754,7 +880,6 @@
             });
         });
 
-        // حركة المشاة مع أرجحة الذراعين والساقين بتناوب
         pedestrians.forEach(p => {
             const cycle = elapsedTime * p.walkSpeed * 42 + p.phase;
             const offset = Math.sin(cycle) * p.range;
@@ -775,6 +900,24 @@
             p.rightLeg.rotation.x = -limbSwing;
             p.leftArm.rotation.x = -limbSwing * 0.75;
             p.rightArm.rotation.x = limbSwing * 0.75;
+        });
+
+        // تحريك السيارات المرورية وإعادة تموضعها عند الابتعاد
+        trafficCars.forEach((tCar, idx) => {
+            if (tCar.axis === 'z') {
+                tCar.mesh.position.z += tCar.dir * tCar.speed;
+            } else {
+                tCar.mesh.position.x += tCar.dir * tCar.speed;
+            }
+
+            tCar.wheels.forEach(w => {
+                w.rotation.x += tCar.speed * 2.8;
+            });
+
+            const dist = tCar.mesh.position.distanceTo(car.position);
+            if (dist > 145) {
+                spawnTrafficCar(tCar, idx);
+            }
         });
     }
 
