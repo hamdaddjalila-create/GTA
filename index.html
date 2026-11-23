@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - 3D City With Collisions</title>
+    <title>Clio 4 - Working Traffic Lights 3D</title>
     <style>
         * {
             margin: 0;
@@ -57,6 +57,12 @@
             color: #f87171;
             margin-top: 6px;
             min-height: 18px;
+            font-weight: bold;
+        }
+        #signal-status {
+            font-size: 0.78rem;
+            color: #4ade80;
+            margin-top: 4px;
             font-weight: bold;
         }
         .speedometer {
@@ -152,7 +158,8 @@
 <div id="hud">
     <div class="panel">
         <div class="car-title">Renault Clio IV — Endless US City</div>
-        <div class="car-sub">تصادم مع العمارات، السيارات، والأشخاص</div>
+        <div class="car-sub">إشارات مرور عاملة، تصادم، مدينة لا تنتهي، ومشاة</div>
+        <div id="signal-status">إشارة التقاطع: متزامنة</div>
         <div id="collision-status">جاهز للقيادة</div>
         <div class="controls-bar">
             <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
@@ -254,7 +261,7 @@
     const trafficLightGroups = [];
     const pedestrians = [];
     const buildingWindows = [];
-    const buildingBoxes = []; // لتخزين حدود العمارات للفحص التصادمي
+    const buildingBoxes = [];
 
     function createRoadStrip(length, rotY) {
         const strip = new THREE.Group();
@@ -423,14 +430,22 @@
             tile.add(stripeNS1, stripeNS2, stripeEW1, stripeEW2);
         }
 
-        const redMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-        const greenMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
-        const redOffMat = new THREE.MeshBasicMaterial({ color: 0x3f1212 });
-        const greenOffMat = new THREE.MeshBasicMaterial({ color: 0x0e3a1d });
+        // إشارات مرور ثلاثية الألوان تعمل بدورة منظمة (أحمر، أصفر، أخضر)
+        const redOnMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
+        const yellowOnMat = new THREE.MeshBasicMaterial({ color: 0xffd000 });
+        const greenOnMat = new THREE.MeshBasicMaterial({ color: 0x16ff6a });
 
-        const lightUnit = { redMat, greenMat, redOffMat, greenOffMat, bulbs: [] };
+        const redOffMat = new THREE.MeshBasicMaterial({ color: 0x380c0c });
+        const yellowOffMat = new THREE.MeshBasicMaterial({ color: 0x3a2e08 });
+        const greenOffMat = new THREE.MeshBasicMaterial({ color: 0x083618 });
 
-        [[-9.2, -9.2], [9.2, 9.2]].forEach(([cx, cz]) => {
+        const lightUnit = {
+            redOnMat, yellowOnMat, greenOnMat,
+            redOffMat, yellowOffMat, greenOffMat,
+            signals: []
+        };
+
+        [[-9.2, -9.2], [9.2, 9.2]].forEach(([cx, cz], idx) => {
             const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 5.8), poleMat);
             pole.position.set(cx, 2.9, cz);
             pole.castShadow = true;
@@ -440,18 +455,21 @@
             arm.position.set(cx + (cx < 0 ? 1.9 : -1.9), 5.6, cz);
             tile.add(arm);
 
-            const box = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.85, 0.35), poleMat);
+            const box = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.38), poleMat);
             box.position.set(cx + (cx < 0 ? 3.2 : -3.2), 5.15, cz);
             tile.add(box);
 
-            const rBulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), redMat);
-            rBulb.position.set(box.position.x, 5.38, box.position.z + 0.18);
+            const rBulb = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 12), redOnMat);
+            rBulb.position.set(box.position.x, 5.48, box.position.z + 0.19);
 
-            const gBulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), greenOffMat);
-            gBulb.position.set(box.position.x, 4.92, box.position.z + 0.18);
+            const yBulb = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 12), yellowOffMat);
+            yBulb.position.set(box.position.x, 5.15, box.position.z + 0.19);
 
-            tile.add(rBulb, gBulb);
-            lightUnit.bulbs.push({ rBulb, gBulb });
+            const gBulb = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 12), greenOffMat);
+            gBulb.position.set(box.position.x, 4.82, box.position.z + 0.19);
+
+            tile.add(rBulb, yBulb, gBulb);
+            lightUnit.signals.push({ rBulb, yBulb, gBulb, axis: idx === 0 ? 'z' : 'x' });
         });
         trafficLightGroups.push(lightUnit);
 
@@ -789,6 +807,7 @@
     let statusTimeout = 0;
 
     const collisionStatusEl = document.getElementById('collision-status');
+    const signalStatusEl = document.getElementById('signal-status');
 
     function notifyCollision(label) {
         collisionCount++;
@@ -918,7 +937,6 @@
     function checkCollisions() {
         const carRadius = 1.75;
 
-        // 1. التصادم مع العمارات (منع الاختراق والارتداد)
         for (let i = 0; i < buildingBoxes.length; i++) {
             const b = buildingBoxes[i];
             const closestX = Math.max(b.worldX - b.halfW, Math.min(car.position.x, b.worldX + b.halfW));
@@ -944,7 +962,6 @@
             }
         }
 
-        // 2. التصادم مع السيارات الأخرى
         for (let i = 0; i < trafficCars.length; i++) {
             const tCar = trafficCars[i];
             const dx = car.position.x - tCar.mesh.position.x;
@@ -970,7 +987,6 @@
             }
         }
 
-        // 3. التصادم مع الأشخاص
         const carWorldPos = new THREE.Vector3();
         for (let i = 0; i < pedestrians.length; i++) {
             const p = pedestrians[i];
@@ -1002,13 +1018,57 @@
             }
         }
 
-        const greenPhase = Math.floor(elapsedTime / 6) % 2 === 0;
+        // دورة إشارات المرور (كل 10 ثوانٍ: 5ث أخضر/أحمر، ثم 1.5ث أصفر، ثم 3.5ث عكس)
+        const cycleSec = elapsedTime % 10;
+        let nsState = 'green'; // 'green' | 'yellow' | 'red'
+        if (cycleSec < 5.0) {
+            nsState = 'green';
+        } else if (cycleSec < 6.5) {
+            nsState = 'yellow';
+        } else {
+            nsState = 'red';
+        }
+
+        let ewState = 'red';
+        if (cycleSec < 6.5) {
+            ewState = 'red';
+        } else if (cycleSec < 8.5) {
+            ewState = 'green';
+        } else {
+            ewState = 'yellow';
+        }
+
         trafficLightGroups.forEach(unit => {
-            unit.bulbs.forEach(b => {
-                b.rBulb.material = greenPhase ? unit.redOffMat : unit.redMat;
-                b.gBulb.material = greenPhase ? unit.greenMat : unit.greenOffMat;
+            unit.signals.forEach(sig => {
+                const state = sig.axis === 'z' ? nsState : ewState;
+                sig.rBulb.material = state === 'red' ? unit.redOnMat : unit.redOffMat;
+                sig.yBulb.material = state === 'yellow' ? unit.yellowOnMat : unit.yellowOffMat;
+                sig.gBulb.material = state === 'green' ? unit.greenOnMat : unit.greenOffMat;
             });
         });
+
+        // تحديث حالة الإشارة بالنسبة لاتجاه السيارة عند اقترابها من أقرب تقاطع
+        const nearX = Math.round(car.position.x / TILE_SIZE) * TILE_SIZE;
+        const nearZ = Math.round(car.position.z / TILE_SIZE) * TILE_SIZE;
+        const distToCenter = Math.hypot(car.position.x - nearX, car.position.z - nearZ);
+
+        if (distToCenter < 28) {
+            const movingAlongZ = Math.abs(Math.cos(car.rotation.y)) >= Math.abs(Math.sin(car.rotation.y));
+            const activeState = movingAlongZ ? nsState : ewState;
+            if (activeState === 'green') {
+                signalStatusEl.textContent = 'إشارة التقاطع: خضراء (تقدّم)';
+                signalStatusEl.style.color = '#4ade80';
+            } else if (activeState === 'yellow') {
+                signalStatusEl.textContent = 'إشارة التقاطع: صفراء (استعد للتوقف)';
+                signalStatusEl.style.color = '#facc15';
+            } else {
+                signalStatusEl.textContent = 'إشارة التقاطع: حمراء (توقف)';
+                signalStatusEl.style.color = '#f87171';
+            }
+        } else {
+            signalStatusEl.textContent = 'إشارات المرور: نشطة في التقاطعات';
+            signalStatusEl.style.color = '#94a3b8';
+        }
 
         pedestrians.forEach(p => {
             if (p.hitTimer > 0) {
