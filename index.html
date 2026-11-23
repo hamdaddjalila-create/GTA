@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - Cafe, Hotel, Park & City 3D</title>
+    <title>Clio 4 - Gas, Restaurant, Market & City 3D</title>
     <style>
         * {
             margin: 0;
@@ -164,8 +164,8 @@
 <div id="hud">
     <div class="panel">
         <div class="car-title">Renault Clio IV — Endless US City</div>
-        <div class="car-sub">مقهى، فندق، حديقة، مكاتب، إشارات مرور، وتصادم</div>
-        <div id="district-status">الموقع الحالي: شوارع المدينة</div>
+        <div class="car-sub">محطة وقود، مطعم، سوبرماركت، مقهى، فندق، حديقة، ومكاتب</div>
+        <div id="district-status">بالقرب من: شوارع المدينة</div>
         <div id="signal-status">إشارات المرور: نشطة في التقاطعات</div>
         <div id="collision-status">جاهز للقيادة</div>
         <div class="controls-bar">
@@ -270,9 +270,8 @@
     const pedestrians = [];
     const buildingWindows = [];
     const buildingBoxes = [];
-    const landmarks = []; // لتتبع أسماء المرافق (مقهى، فندق، حديقة، مكاتب)
+    const landmarks = [];
 
-    // دالة مساعدة لإنشاء لوحة نصية ثلاثية الأبعاد عبر CanvasTexture
     function createSignTexture(text, bgColor, textColor) {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
@@ -286,7 +285,7 @@
         ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
 
         ctx.fillStyle = textColor;
-        ctx.font = 'bold 54px sans-serif';
+        ctx.font = 'bold 50px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
@@ -346,7 +345,7 @@
         return strip;
     }
 
-    // 1. بناء مقهى (CAFÉ) بمظلة وطاولات خارجية ولافتة
+    // 1. مقهى (CAFÉ)
     function createCafeFacility(w, d) {
         const group = new THREE.Group();
         const h = 10;
@@ -364,7 +363,6 @@
         roof.position.y = h + 0.25;
         group.add(roof);
 
-        // مظلة أمامية للمقهى
         const awning = new THREE.Mesh(
             new THREE.BoxGeometry(w * 0.75, 0.25, 3.2),
             new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 })
@@ -373,7 +371,6 @@
         awning.rotation.x = 0.2;
         group.add(awning);
 
-        // نوافذ مضيئة دافئة
         const winGeo = new THREE.PlaneGeometry(2.2, 2.0);
         [-w * 0.25, w * 0.25].forEach(wx => {
             const win = new THREE.Mesh(winGeo, warmWindowMat);
@@ -382,7 +379,6 @@
             buildingWindows.push({ mesh: win, isLit: true, warm: true });
         });
 
-        // لافتة CAFÉ
         const signTex = createSignTexture('CAFÉ', '#78350f', '#fef3c7');
         const signMesh = new THREE.Mesh(
             new THREE.BoxGeometry(8.5, 2.0, 0.25),
@@ -391,7 +387,6 @@
         signMesh.position.set(0, 8.6, d / 2 + 0.16);
         group.add(signMesh);
 
-        // طاولات صغيرة أمام المقهى
         const tableMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
         [-5, 0, 5].forEach(tx => {
             const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16), tableMat);
@@ -404,7 +399,7 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 2. بناء فندق (HOTEL) متعدد الطوابق مع مدخل ولافتة
+    // 2. فندق (HOTEL)
     function createHotelFacility(w, d, seed) {
         const group = new THREE.Group();
         const h = 32;
@@ -422,7 +417,6 @@
         topCrown.position.y = h + 0.6;
         group.add(topCrown);
 
-        // مظلة مدخل الفندق
         const canopy = new THREE.Mesh(
             new THREE.BoxGeometry(9.0, 0.4, 4.0),
             new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4 })
@@ -430,7 +424,6 @@
         canopy.position.set(0, 3.8, d / 2 + 1.8);
         group.add(canopy);
 
-        // لافتة HOTEL العلوية
         const signTex = createSignTexture('HOTEL', '#1e3a8a', '#f8fafc');
         const signMesh = new THREE.Mesh(
             new THREE.BoxGeometry(11.0, 2.5, 0.3),
@@ -439,7 +432,6 @@
         signMesh.position.set(0, h - 2.4, d / 2 + 0.2);
         group.add(signMesh);
 
-        // نوافذ الطوابق
         const floors = 7;
         const cols = 5;
         const winGeo = new THREE.PlaneGeometry(1.5, 1.8);
@@ -458,7 +450,7 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 3. بناء حديقة (PARK) خضراء بأشجار وممر
+    // 3. حديقة (PARK)
     function createParkFacility(w, d) {
         const group = new THREE.Group();
 
@@ -472,7 +464,6 @@
         lawn.receiveShadow = true;
         group.add(lawn);
 
-        // ممر مشاة متقاطع داخل الحديقة
         const pathNS = new THREE.Mesh(new THREE.PlaneGeometry(2.6, d - 2), pathMat);
         pathNS.rotation.x = -Math.PI / 2;
         pathNS.position.y = 0.36;
@@ -481,7 +472,6 @@
         pathEW.position.y = 0.36;
         group.add(pathNS, pathEW);
 
-        // لافتة PARK
         const signTex = createSignTexture('PARK', '#14532d', '#dcfce7');
         const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 3.2), poleMat);
         signPost.position.set(0, 1.6, d / 2 - 1.5);
@@ -492,7 +482,6 @@
         signBoard.position.set(0, 3.2, d / 2 - 1.5);
         group.add(signPost, signBoard);
 
-        // أشجار في زوايا الحديقة
         const treeCoords = [
             [-8, -8], [8, -8],
             [-8, 8], [8, 8]
@@ -512,11 +501,147 @@
             group.add(tree);
         });
 
-        // الحديقة لا تمنع القيادة بنفس طريقة العمارة العالية، لكن نضع عائقاً خفيفاً للأشجار فقط
         return { group, halfW: 0, halfD: 0 };
     }
 
-    // 4. بناء مبنى مكاتب (OFFICE)
+    // 4. محطة وقود (GAS STATION) بمظلة ومضخات
+    function createGasStationFacility(w, d) {
+        const group = new THREE.Group();
+
+        // أرضية المحطة ومبنى صغير جانبي
+        const pad = new THREE.Mesh(
+            new THREE.BoxGeometry(w, 0.25, d),
+            new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 })
+        );
+        pad.position.y = 0.125;
+        pad.receiveShadow = true;
+        group.add(pad);
+
+        const shop = new THREE.Mesh(
+            new THREE.BoxGeometry(10, 6.5, 9),
+            new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 })
+        );
+        shop.position.set(-7, 3.25, -7);
+        shop.castShadow = true;
+        group.add(shop);
+
+        const shopWin = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 2.2), warmWindowMat);
+        shopWin.position.set(-7, 3.4, -2.46);
+        group.add(shopWin);
+        buildingWindows.push({ mesh: shopWin, isLit: true, warm: true });
+
+        // مظلة المحطة العلوية
+        const canopyRoof = new THREE.Mesh(
+            new THREE.BoxGeometry(16, 0.7, 12),
+            new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.45 })
+        );
+        canopyRoof.position.set(3, 5.8, 3);
+        canopyRoof.castShadow = true;
+        group.add(canopyRoof);
+
+        [[-3.5, -1.5], [9.5, -1.5], [-3.5, 7.5], [9.5, 7.5]].forEach(([px, pz]) => {
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 5.6, 12), poleMat);
+            pillar.position.set(px, 2.8, pz);
+            pillar.castShadow = true;
+            group.add(pillar);
+        });
+
+        // مضخات الوقود
+        const pumpMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+        [-1, 3, 7].forEach(mx => {
+            const pump = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.0, 0.8), pumpMat);
+            pump.position.set(mx, 1.0, 3);
+            pump.castShadow = true;
+            group.add(pump);
+        });
+
+        const signTex = createSignTexture('GAS STATION', '#991b1b', '#fef08a');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(11.5, 2.0, 0.3),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(3, 5.8, 9.15);
+        group.add(signMesh);
+
+        return { group, halfW: w / 2 + 0.4, halfD: d / 2 + 0.4 };
+    }
+
+    // 5. مطعم (RESTAURANT)
+    function createRestaurantFacility(w, d) {
+        const group = new THREE.Group();
+        const h = 12;
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.68 })
+        );
+        body.position.y = h / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.6, d + 0.8), trimMat);
+        roof.position.y = h + 0.3;
+        group.add(roof);
+
+        const winGeo = new THREE.PlaneGeometry(2.6, 2.2);
+        [-6, 0, 6].forEach(wx => {
+            const win = new THREE.Mesh(winGeo, warmWindowMat);
+            win.position.set(wx, 5.2, d / 2 + 0.04);
+            group.add(win);
+            buildingWindows.push({ mesh: win, isLit: true, warm: true });
+        });
+
+        const signTex = createSignTexture('RESTAURANT', '#451a03', '#fde68a');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(11.5, 2.2, 0.28),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(0, 9.8, d / 2 + 0.18);
+        group.add(signMesh);
+
+        return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
+    }
+
+    // 6. سوبرماركت (MARKET)
+    function createMarketFacility(w, d, seed) {
+        const group = new THREE.Group();
+        const h = 13;
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.6 })
+        );
+        body.position.y = h / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.9, 0.65, d + 0.9), trimMat);
+        roof.position.y = h + 0.32;
+        group.add(roof);
+
+        const winGeo = new THREE.PlaneGeometry(3.2, 2.4);
+        [-7, 0, 7].forEach((wx, idx) => {
+            const isLit = ((seed + idx) % 2) === 0;
+            const win = new THREE.Mesh(winGeo, isLit ? litWindowMat : darkWindowMat);
+            win.position.set(wx, 5.0, d / 2 + 0.04);
+            group.add(win);
+            buildingWindows.push({ mesh: win, isLit, warm: false });
+        });
+
+        const signTex = createSignTexture('MARKET', '#0369a1', '#f0f9ff');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(12.0, 2.3, 0.3),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(0, 10.4, d / 2 + 0.2);
+        group.add(signMesh);
+
+        return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
+    }
+
+    // 7. مبنى مكاتب (OFFICE)
     function createOfficeFacility(w, d, colorHex, seed) {
         const group = new THREE.Group();
         const h = 20;
@@ -671,21 +796,23 @@
         });
         trafficLightGroups.push(lightUnit);
 
-        // توزيع مرافق متنوعة في الأرباع الأربعة: مقهى، فندق، حديقة، ومبنى مكاتب
         const quadOffsets = [
             [-36, -36], [36, -36],
             [-36, 36], [36, 36]
         ];
-        const facilityTypes = ['CAFE', 'HOTEL', 'PARK', 'OFFICE'];
+        const facilityTypes = ['CAFE', 'HOTEL', 'PARK', 'GAS', 'RESTAURANT', 'MARKET', 'OFFICE'];
         const facilityLabelsAr = {
             CAFE: 'مقهى (CAFÉ)',
             HOTEL: 'فندق (HOTEL)',
             PARK: 'حديقة (PARK)',
+            GAS: 'محطة وقود (GAS STATION)',
+            RESTAURANT: 'مطعم (RESTAURANT)',
+            MARKET: 'سوبرماركت (MARKET)',
             OFFICE: 'مبنى مكاتب (OFFICE)'
         };
 
         quadOffsets.forEach(([qx, qz], qIdx) => {
-            const type = facilityTypes[(seedIndex + qIdx) % facilityTypes.length];
+            const type = facilityTypes[(seedIndex * 3 + qIdx) % facilityTypes.length];
             let built;
 
             if (type === 'CAFE') {
@@ -694,6 +821,12 @@
                 built = createHotelFacility(28, 28, seedIndex * 7 + qIdx);
             } else if (type === 'PARK') {
                 built = createParkFacility(28, 28);
+            } else if (type === 'GAS') {
+                built = createGasStationFacility(28, 28);
+            } else if (type === 'RESTAURANT') {
+                built = createRestaurantFacility(26, 26);
+            } else if (type === 'MARKET') {
+                built = createMarketFacility(28, 28, seedIndex * 11 + qIdx);
             } else {
                 const colorHex = buildingPalette[(seedIndex + qIdx) % buildingPalette.length];
                 built = createOfficeFacility(28, 28, colorHex, seedIndex * 5 + qIdx);
@@ -1179,7 +1312,6 @@
             });
         });
 
-        // تحديد أقرب مرفق من السيارة
         let nearestLabel = 'شوارع المدينة';
         let bestDist = 42;
         for (let i = 0; i < landmarks.length; i++) {
@@ -1484,3 +1616,4 @@
 
 </body>
 </html>
+
