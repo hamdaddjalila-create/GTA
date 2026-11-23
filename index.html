@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - US Streets 3D Driving</title>
+    <title>Clio 4 - Endless US City 3D</title>
     <style>
         * {
             margin: 0;
@@ -25,38 +25,39 @@
         }
         #hud {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
+            top: 18px;
+            left: 18px;
+            right: 18px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             pointer-events: none;
+            gap: 12px;
         }
         .panel {
             background: rgba(15, 23, 42, 0.78);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.14);
-            padding: 12px 18px;
+            padding: 12px 16px;
             border-radius: 12px;
             pointer-events: auto;
         }
         .car-title {
-            font-size: 1.08rem;
+            font-size: 1.05rem;
             font-weight: bold;
             color: #f8fafc;
         }
         .car-sub {
-            font-size: 0.78rem;
+            font-size: 0.76rem;
             color: #94a3b8;
             margin-top: 2px;
         }
         .speedometer {
             text-align: center;
-            min-width: 112px;
+            min-width: 118px;
         }
         #speed-val {
-            font-size: 2rem;
+            font-size: 1.95rem;
             font-weight: 800;
             color: #38bdf8;
             line-height: 1;
@@ -66,24 +67,24 @@
             color: #cbd5e1;
         }
         #steer-indicator {
-            font-size: 0.75rem;
+            font-size: 0.74rem;
             color: #fbbf24;
             margin-top: 4px;
         }
         .controls-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 7px;
             margin-top: 10px;
         }
         button.action-btn {
             background: #1e293b;
             color: #f8fafc;
             border: 1px solid #334155;
-            padding: 6px 12px;
+            padding: 6px 11px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             transition: 0.2s;
         }
         button.action-btn:hover {
@@ -95,17 +96,17 @@
         }
         #instructions {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            font-size: 0.8rem;
+            bottom: 18px;
+            left: 18px;
+            font-size: 0.78rem;
             color: #cbd5e1;
         }
         #mobile-controls {
             display: none;
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
+            bottom: 18px;
+            left: 18px;
+            right: 18px;
             justify-content: space-between;
             pointer-events: none;
         }
@@ -115,13 +116,13 @@
             pointer-events: auto;
         }
         .touch-btn {
-            width: 64px;
-            height: 64px;
+            width: 62px;
+            height: 62px;
             border-radius: 50%;
-            background: rgba(30, 41, 59, 0.8);
+            background: rgba(30, 41, 59, 0.82);
             border: 2px solid rgba(255, 255, 255, 0.25);
             color: white;
-            font-size: 1.45rem;
+            font-size: 1.4rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -143,10 +144,11 @@
 
 <div id="hud">
     <div class="panel">
-        <div class="car-title">Renault Clio IV — US Avenue</div>
-        <div class="car-sub">شوارع أمريكية وانحناء سلس</div>
+        <div class="car-title">Renault Clio IV — Endless US City</div>
+        <div class="car-sub">مدينة لا تنتهي، مشاة على الأرصفة، وإشارات مرور</div>
         <div class="controls-bar">
             <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
+            <button class="action-btn" id="btn-time" onclick="toggleDayNight()">الوضع: ليلي</button>
             <button class="action-btn" id="btn-cam" onclick="switchCamera()">الكاميرا</button>
             <button class="action-btn" onclick="resetCar()">إعادة الضبط</button>
         </div>
@@ -180,10 +182,13 @@
     // 1. إعداد المشهد والكاميرا والمصيّر
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x090e1a);
-    scene.fog = new THREE.FogExp2(0x090e1a, 0.0055);
+    const nightBg = 0x090e1a;
+    const dayBg = 0x7dd3fc;
 
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    scene.background = new THREE.Color(nightBg);
+    scene.fog = new THREE.FogExp2(nightBg, 0.0042);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -195,23 +200,23 @@
     const ambientLight = new THREE.AmbientLight(0x52607a, 0.95);
     scene.add(ambientLight);
 
-    const moonLight = new THREE.DirectionalLight(0xe2e8f0, 0.95);
-    moonLight.position.set(45, 85, 35);
-    moonLight.castShadow = true;
-    moonLight.shadow.mapSize.width = 2048;
-    moonLight.shadow.mapSize.height = 2048;
-    moonLight.shadow.camera.near = 10;
-    moonLight.shadow.camera.far = 260;
-    const d = 90;
-    moonLight.shadow.camera.left = -d;
-    moonLight.shadow.camera.right = d;
-    moonLight.shadow.camera.top = d;
-    moonLight.shadow.camera.bottom = -d;
-    scene.add(moonLight);
+    const dirLight = new THREE.DirectionalLight(0xe2e8f0, 0.95);
+    dirLight.position.set(50, 90, 40);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 300;
+    const shadowBound = 110;
+    dirLight.shadow.camera.left = -shadowBound;
+    dirLight.shadow.camera.right = shadowBound;
+    dirLight.shadow.camera.top = shadowBound;
+    dirLight.shadow.camera.bottom = -shadowBound;
+    scene.add(dirLight, dirLight.target);
 
-    // 3. الأرضية وشبكة الشوارع الأمريكية
+    // 3. الأرضية المتحركة والمدينة اللانهائية (Infinite City Grid)
     const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(1400, 1400),
+        new THREE.PlaneGeometry(2400, 2400),
         new THREE.MeshStandardMaterial({ color: 0x0b101b, roughness: 0.92 })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -222,19 +227,32 @@
     const whiteLineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
     const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.78 });
     const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
+    const lampBulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    const buildingColors = [0x1e293b, 0x172033, 0x263349, 0x1a2436];
+    const pedestrianShirts = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0xa855f7, 0xec4899];
+    const pedestrianPants = [0x1e293b, 0x334155, 0x0f172a, 0x475569];
 
-    // دالة لإنشاء شارع أمريكي بخطوط صفراء مزدوجة في الوسط وخطوط مسارات بيضاء
-    function createUSRoad(width, length, x, z, rotY = 0) {
-        const roadGroup = new THREE.Group();
+    const TILE_SIZE = 130;
+    const GRID_RADIUS = 1; // 3x3 كتل محيطة بالسيارة تعاد تدويرها باستمرار
+    const roadWidth = 16;
 
-        const road = new THREE.Mesh(new THREE.PlaneGeometry(width, length), asphaltMat);
+    const cityTiles = [];
+    const trafficLightGroups = [];
+    const pedestrians = [];
+
+    // دالة إنشاء شارع أمريكي بطول كتلة كاملة
+    function createRoadStrip(length, rotY) {
+        const strip = new THREE.Group();
+
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, length), asphaltMat);
         road.rotation.x = -Math.PI / 2;
         road.position.y = 0.02;
         road.receiveShadow = true;
-        roadGroup.add(road);
+        strip.add(road);
 
-        // خطان أصفران مزدوجان في المنتصف (الطابع الأمريكي المميز)
-        const doubleYellowGeo = new THREE.PlaneGeometry(0.16, length - 4);
+        // خطان أصفران مزدوجان في المنتصف
+        const doubleYellowGeo = new THREE.PlaneGeometry(0.16, length - 18);
         const yLeft = new THREE.Mesh(doubleYellowGeo, yellowLineMat);
         yLeft.rotation.x = -Math.PI / 2;
         yLeft.position.set(-0.18, 0.035, 0);
@@ -242,156 +260,198 @@
         const yRight = new THREE.Mesh(doubleYellowGeo, yellowLineMat);
         yRight.rotation.x = -Math.PI / 2;
         yRight.position.set(0.18, 0.035, 0);
-        roadGroup.add(yLeft, yRight);
+        strip.add(yLeft, yRight);
 
-        // خطوط بيضاء متقطعة للمسارات اليمنى واليسرى
+        // خطوط بيضاء متقطعة للمسارات
         const laneDashGeo = new THREE.PlaneGeometry(0.18, 3.2);
-        [-width / 4, width / 4].forEach(laneX => {
-            for (let i = -length / 2 + 8; i < length / 2 - 8; i += 10) {
+        [-roadWidth / 4, roadWidth / 4].forEach(laneX => {
+            for (let i = -length / 2 + 16; i < length / 2 - 16; i += 10.5) {
                 const dash = new THREE.Mesh(laneDashGeo, whiteLineMat);
                 dash.rotation.x = -Math.PI / 2;
                 dash.position.set(laneX, 0.032, i);
-                roadGroup.add(dash);
+                strip.add(dash);
             }
         });
 
-        // خطوط بيضاء متصلة على جانبي الطريق
-        const edgeGeo = new THREE.PlaneGeometry(0.2, length - 2);
-        [-width / 2 + 0.45, width / 2 - 0.45].forEach(edgeX => {
+        // خطوط جانبية بيضاء
+        const edgeGeo = new THREE.PlaneGeometry(0.2, length - 16);
+        [-roadWidth / 2 + 0.45, roadWidth / 2 - 0.45].forEach(edgeX => {
             const edge = new THREE.Mesh(edgeGeo, whiteLineMat);
             edge.rotation.x = -Math.PI / 2;
             edge.position.set(edgeX, 0.03, 0);
-            roadGroup.add(edge);
+            strip.add(edge);
         });
 
         // الأرصفة الجانبية
-        const curbGeo = new THREE.BoxGeometry(0.65, 0.24, length);
+        const curbGeo = new THREE.BoxGeometry(0.65, 0.24, length - 16);
         const leftCurb = new THREE.Mesh(curbGeo, curbMat);
-        leftCurb.position.set(-width / 2 - 0.32, 0.12, 0);
+        leftCurb.position.set(-roadWidth / 2 - 0.32, 0.12, 0);
         leftCurb.receiveShadow = true;
 
         const rightCurb = leftCurb.clone();
-        rightCurb.position.x = width / 2 + 0.32;
-        roadGroup.add(leftCurb, rightCurb);
+        rightCurb.position.x = roadWidth / 2 + 0.32;
+        strip.add(leftCurb, rightCurb);
 
-        roadGroup.position.set(x, 0, z);
-        roadGroup.rotation.y = rotY;
-        scene.add(roadGroup);
+        strip.rotation.y = rotY;
+        return strip;
     }
 
-    // بناء تقاطعات الشوارع الأمريكية
-    const roadWidth = 16;
-    const roadLen = 460;
-    const gridCoords = [-130, 0, 130];
+    // دالة إنشاء شخصية مشاة تتحرك على الرصيف
+    function createPedestrian(shirtColor, pantsColor) {
+        const person = new THREE.Group();
 
-    gridCoords.forEach(pos => {
-        createUSRoad(roadWidth, roadLen, pos, 0, 0);
-        createUSRoad(roadWidth, roadLen, 0, pos, Math.PI / 2);
-    });
+        const legs = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.72, 0.24), new THREE.MeshStandardMaterial({ color: pantsColor }));
+        legs.position.y = 0.36;
+        legs.castShadow = true;
 
-    // خطوط المشاة والتوقف عند التقاطعات
-    function addIntersectionMarkings(ix, iz) {
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.65, 0.26), new THREE.MeshStandardMaterial({ color: shirtColor }));
+        torso.position.y = 1.04;
+        torso.castShadow = true;
+
+        const head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.18, 12, 12),
+            new THREE.MeshStandardMaterial({ color: 0xf1c27d, roughness: 0.6 })
+        );
+        head.position.y = 1.56;
+        head.castShadow = true;
+
+        person.add(legs, torso, head);
+        return person;
+    }
+
+    // بناء كتلة مدينة متكاملة (تقاطع + طرق + مبانٍ + إشارات مرور + مشاة)
+    function createCityTile(seedIndex) {
+        const tile = new THREE.Group();
+
+        // الطرق المتقاطعة داخل الكتلة
+        tile.add(createRoadStrip(TILE_SIZE, 0));
+        tile.add(createRoadStrip(TILE_SIZE, Math.PI / 2));
+
+        // خطوط المشاة عند التقاطع المركزي للكتلة
         for (let i = -6.5; i <= 6.5; i += 1.3) {
-            const stripeNS1 = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 2.4), whiteLineMat);
+            const stripeNS1 = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 2.2), whiteLineMat);
             stripeNS1.rotation.x = -Math.PI / 2;
-            stripeNS1.position.set(ix + i, 0.035, iz + 9.5);
+            stripeNS1.position.set(i, 0.035, 9.5);
 
             const stripeNS2 = stripeNS1.clone();
-            stripeNS2.position.z = iz - 9.5;
+            stripeNS2.position.z = -9.5;
 
-            const stripeEW1 = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.55), whiteLineMat);
+            const stripeEW1 = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), whiteLineMat);
             stripeEW1.rotation.x = -Math.PI / 2;
-            stripeEW1.position.set(ix + 9.5, 0.035, iz + i);
+            stripeEW1.position.set(9.5, 0.035, i);
 
             const stripeEW2 = stripeEW1.clone();
-            stripeEW2.position.x = ix - 9.5;
+            stripeEW2.position.x = -9.5;
 
-            scene.add(stripeNS1, stripeNS2, stripeEW1, stripeEW2);
+            tile.add(stripeNS1, stripeNS2, stripeEW1, stripeEW2);
         }
 
-        // إشارات مرور أمريكية عند زوايا التقاطع
-        const postMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
+        // إشارات مرور عند التقاطع
         const redMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-        const amberMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
         const greenMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+        const redOffMat = new THREE.MeshBasicMaterial({ color: 0x3f1212 });
+        const greenOffMat = new THREE.MeshBasicMaterial({ color: 0x0e3a1d });
+
+        const lightUnit = { redMat, greenMat, redOffMat, greenOffMat, bulbs: [] };
 
         [[-9.2, -9.2], [9.2, 9.2]].forEach(([cx, cz]) => {
-            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 5.8), postMat);
-            pole.position.set(ix + cx, 2.9, iz + cz);
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 5.8), poleMat);
+            pole.position.set(cx, 2.9, cz);
             pole.castShadow = true;
-            scene.add(pole);
+            tile.add(pole);
 
-            const arm = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.12, 0.12), postMat);
-            arm.position.set(ix + cx + (cx < 0 ? 2.0 : -2.0), 5.6, iz + cz);
-            scene.add(arm);
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.12, 0.12), poleMat);
+            arm.position.set(cx + (cx < 0 ? 1.9 : -1.9), 5.6, cz);
+            tile.add(arm);
 
-            const box = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.05, 0.35), postMat);
-            box.position.set(ix + cx + (cx < 0 ? 3.4 : -3.4), 5.1, iz + cz);
-            scene.add(box);
+            const box = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.85, 0.35), poleMat);
+            box.position.set(cx + (cx < 0 ? 3.2 : -3.2), 5.15, cz);
+            tile.add(box);
 
-            const l1 = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), redMat);
-            l1.position.set(box.position.x, 5.4, box.position.z + 0.18);
-            const l2 = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), amberMat);
-            l2.position.set(box.position.x, 5.1, box.position.z + 0.18);
-            const l3 = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), greenMat);
-            l3.position.set(box.position.x, 4.8, box.position.z + 0.18);
-            scene.add(l1, l2, l3);
+            const rBulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), redMat);
+            rBulb.position.set(box.position.x, 5.38, box.position.z + 0.18);
+
+            const gBulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), greenOffMat);
+            gBulb.position.set(box.position.x, 4.92, box.position.z + 0.18);
+
+            tile.add(rBulb, gBulb);
+            lightUnit.bulbs.push({ rBulb, gBulb });
         });
+        trafficLightGroups.push(lightUnit);
 
-        // لوحة شارع خضراء أمريكية (Street Sign)
-        const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3.2), postMat);
-        signPost.position.set(ix - 9.2, 1.6, iz + 9.2);
-        const greenSign = new THREE.Mesh(
-            new THREE.BoxGeometry(1.3, 0.28, 0.05),
-            new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 })
-        );
-        greenSign.position.set(ix - 9.2, 3.0, iz + 9.2);
-        scene.add(signPost, greenSign);
-    }
+        // مبانٍ وأعمدة إنارة في الأرباع الأربعة للكتلة
+        const quadOffsets = [
+            [-36, -36], [36, -36],
+            [-36, 36], [36, 36]
+        ];
 
-    gridCoords.forEach(gx => {
-        gridCoords.forEach(gz => {
-            addIntersectionMarkings(gx, gz);
-        });
-    });
-
-    // مبانٍ وأعمدة إنارة على طول الشوارع
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
-    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-    const buildingColors = [0x1e293b, 0x172033, 0x263349, 0x1a2436];
-
-    for (let z = -210; z <= 210; z += 43) {
-        const nearIntersection = gridCoords.some(c => Math.abs(z - c) < 16);
-        if (!nearIntersection) {
-            [-9.2, 9.2].forEach(xPos => {
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 6.8), poleMat);
-                pole.position.set(xPos, 3.4, z);
-                pole.castShadow = true;
-                scene.add(pole);
-
-                const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.28), bulbMat);
-                lamp.position.set(xPos + (xPos > 0 ? -1.1 : 1.1), 6.7, z);
-                scene.add(lamp);
-            });
-        }
-
-        [-28, 28].forEach((bx, idx) => {
-            if (Math.abs(z) < 14 && Math.abs(bx) < 30) return;
-            const h = 12 + Math.abs(Math.sin(z * 0.7 + idx)) * 28;
-            const bGeo = new THREE.BoxGeometry(18, h, 24);
+        quadOffsets.forEach(([qx, qz], qIdx) => {
+            const h = 12 + Math.abs(Math.sin((seedIndex + 1) * 1.7 + qIdx)) * 28;
+            const bGeo = new THREE.BoxGeometry(28, h, 28);
             const bMat = new THREE.MeshStandardMaterial({
-                color: buildingColors[(Math.abs(z) + idx) % buildingColors.length],
+                color: buildingColors[(seedIndex + qIdx) % buildingColors.length],
                 roughness: 0.8
             });
             const building = new THREE.Mesh(bGeo, bMat);
-            building.position.set(bx, h / 2, z);
+            building.position.set(qx, h / 2, qz);
             building.castShadow = true;
             building.receiveShadow = true;
-            scene.add(building);
+            tile.add(building);
+
+            // عمود إنارة قريب من الرصيف
+            const lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 6.6), poleMat);
+            const lampX = qx + (qx < 0 ? 26.5 : -26.5);
+            const lampZ = qz + (qz < 0 ? 22 : -22);
+            lampPole.position.set(lampX, 3.3, lampZ);
+            lampPole.castShadow = true;
+            tile.add(lampPole);
+
+            const lampBulb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.25), lampBulbMat);
+            lampBulb.position.set(lampX + (qx < 0 ? -0.9 : 0.9), 6.55, lampZ);
+            tile.add(lampBulb);
         });
+
+        // مشاة يمشون على الأرصفة داخل كل كتلة
+        for (let p = 0; p < 3; p++) {
+            const shirt = pedestrianShirts[(seedIndex * 3 + p) % pedestrianShirts.length];
+            const pants = pedestrianPants[(seedIndex + p) % pedestrianPants.length];
+            const pedMesh = createPedestrian(shirt, pants);
+
+            const sideSign = p % 2 === 0 ? 1 : -1;
+            const alongAxis = p === 2; // إما بمحاذاة محور X أو محور Z على الرصيف
+            const baseX = alongAxis ? (-22 + p * 18) : (sideSign * (roadWidth / 2 + 0.85));
+            const baseZ = alongAxis ? (sideSign * (roadWidth / 2 + 0.85)) : (-22 + p * 16);
+
+            pedMesh.position.set(baseX, 0.22, baseZ);
+            tile.add(pedMesh);
+
+            pedestrians.push({
+                mesh: pedMesh,
+                baseX,
+                baseZ,
+                alongAxis,
+                dir: sideSign,
+                speed: 0.022 + (p % 3) * 0.006,
+                phase: seedIndex + p * 1.4,
+                range: 22
+            });
+        }
+
+        scene.add(tile);
+        return tile;
     }
 
-    // 4. بناء السيارة (مجموعة رئيسية + هيكل قابل للميلان أثناء الانحناء)
+    // إنشاء شبكة 3x3 من الكتل حول نقطة البداية
+    let tileCounter = 0;
+    for (let gx = -GRID_RADIUS; gx <= GRID_RADIUS; gx++) {
+        for (let gz = -GRID_RADIUS; gz <= GRID_RADIUS; gz++) {
+            const tile = createCityTile(tileCounter++);
+            tile.position.set(gx * TILE_SIZE, 0, gz * TILE_SIZE);
+            cityTiles.push({ mesh: tile, gx, gz });
+        }
+    }
+
+    // 4. بناء سيارة Renault Clio 4 البيضاء
     const car = new THREE.Group();
     const carBodyGroup = new THREE.Group();
     car.add(carBodyGroup);
@@ -415,6 +475,7 @@
     const rimGrey = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.25 });
     const tireRubber = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.85 });
     const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0x991b1b, emissiveIntensity: 1.5 });
+    const reverseLightMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 0.0 });
     const headLightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe0f2fe, emissiveIntensity: 2.0 });
 
     const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.58, 4.06), whitePaint);
@@ -488,22 +549,30 @@
     hlRight.position.x = -0.64;
     carBodyGroup.add(hlLeft, hlRight);
 
-    const tailLightGeo = new THREE.BoxGeometry(0.46, 0.18, 0.1);
+    const tailLightGeo = new THREE.BoxGeometry(0.44, 0.18, 0.1);
     const tlLeft = new THREE.Mesh(tailLightGeo, tailLightMat);
-    tlLeft.position.set(0.62, 0.76, -2.01);
+    tlLeft.position.set(0.63, 0.76, -2.01);
     const tlRight = tlLeft.clone();
-    tlRight.position.x = -0.62;
+    tlRight.position.x = -0.63;
     carBodyGroup.add(tlLeft, tlRight);
 
-    const spotLightL = new THREE.SpotLight(0xe0f2fe, 2.8, 80, Math.PI / 5, 0.4, 1);
-    spotLightL.position.set(0.64, 0.68, 1.95);
-    spotLightL.target.position.set(0.64, 0.2, 24);
-    carBodyGroup.add(spotLightL, spotLightL.target);
+    // أضواء الرجوع للخلف (Reverse Lights)
+    const revGeo = new THREE.BoxGeometry(0.16, 0.09, 0.11);
+    const revLeft = new THREE.Mesh(revGeo, reverseLightMat);
+    revLeft.position.set(0.45, 0.66, -2.01);
+    const revRight = revLeft.clone();
+    revRight.position.x = -0.45;
+    carBodyGroup.add(revLeft, revRight);
 
-    const spotLightR = new THREE.SpotLight(0xe0f2fe, 2.8, 80, Math.PI / 5, 0.4, 1);
+    const spotLightL = new THREE.SpotLight(0xe0f2fe, 2.8, 85, Math.PI / 5, 0.4, 1);
+    spotLightL.position.set(0.64, 0.68, 1.95);
+    spotLightL.target.position.set(0.64, 0.2, 25);
+    car.add(spotLightL, spotLightL.target);
+
+    const spotLightR = new THREE.SpotLight(0xe0f2fe, 2.8, 85, Math.PI / 5, 0.4, 1);
     spotLightR.position.set(-0.64, 0.68, 1.95);
-    spotLightR.target.position.set(-0.64, 0.2, 24);
-    carBodyGroup.add(spotLightR, spotLightR.target);
+    spotLightR.target.position.set(-0.64, 0.2, 25);
+    car.add(spotLightR, spotLightR.target);
 
     // العجلات الأربع
     const wheels = [];
@@ -542,17 +611,18 @@
 
     scene.add(car);
 
-    // 5. فيزياء القيادة والانحناء يميناً ويساراً
+    // 5. التحكم والفيزياء
     const keys = { up: false, down: false, left: false, right: false, brake: false };
     let speed = 0;
     let steeringAngle = 0;
     let bodyRoll = 0;
-    const maxSpeed = 1.45;
-    const maxReverse = -0.5;
+    const maxSpeed = 1.5;
+    const maxReverse = -0.52;
     const accel = 0.024;
     const friction = 0.012;
     const brakeForce = 0.055;
     let lightsOn = true;
+    let isDay = false;
     let cameraMode = 0;
 
     window.addEventListener('keydown', (e) => {
@@ -589,11 +659,38 @@
         lightsOn = !lightsOn;
         spotLightL.visible = lightsOn;
         spotLightR.visible = lightsOn;
-        headLightMat.emissiveIntensity = lightsOn ? 2.0 : 0.1;
-        tailLightMat.emissiveIntensity = lightsOn ? 1.5 : 0.2;
+        headLightMat.emissiveIntensity = lightsOn ? 2.0 : 0.05;
         const btn = document.getElementById('btn-lights');
         btn.textContent = lightsOn ? 'المصابيح: تشغيل' : 'المصابيح: إيقاف';
         btn.classList.toggle('active', lightsOn);
+    }
+
+    function toggleDayNight() {
+        isDay = !isDay;
+        const btn = document.getElementById('btn-time');
+        if (isDay) {
+            scene.background = new THREE.Color(dayBg);
+            scene.fog = new THREE.FogExp2(0xbae6fd, 0.0022);
+            ambientLight.color.setHex(0xffffff);
+            ambientLight.intensity = 1.25;
+            dirLight.color.setHex(0xfffbeb);
+            dirLight.intensity = 1.4;
+            ground.material.color.setHex(0x475569);
+            asphaltMat.color.setHex(0x27303f);
+            btn.textContent = 'الوضع: نهاري';
+            btn.classList.add('active');
+        } else {
+            scene.background = new THREE.Color(nightBg);
+            scene.fog = new THREE.FogExp2(nightBg, 0.0042);
+            ambientLight.color.setHex(0x52607a);
+            ambientLight.intensity = 0.95;
+            dirLight.color.setHex(0xe2e8f0);
+            dirLight.intensity = 0.95;
+            ground.material.color.setHex(0x0b101b);
+            asphaltMat.color.setHex(0x1e2430);
+            btn.textContent = 'الوضع: ليلي';
+            btn.classList.remove('active');
+        }
     }
 
     function switchCamera() {
@@ -601,7 +698,7 @@
     }
 
     function resetCar() {
-        car.position.set(3.5, 0, -40);
+        car.position.set(3.5, 0, -25);
         car.rotation.set(0, 0, 0);
         carBodyGroup.rotation.set(0, 0, 0);
         speed = 0;
@@ -609,8 +706,61 @@
         bodyRoll = 0;
     }
 
-    // وضع السيارة في المسار الأيمن للشارع الأمريكي عند البداية
     resetCar();
+
+    // تحديث المدينة اللانهائية حول موقع السيارة
+    function updateInfiniteCity() {
+        const currentTileX = Math.round(car.position.x / TILE_SIZE);
+        const currentTileZ = Math.round(car.position.z / TILE_SIZE);
+
+        ground.position.x = car.position.x;
+        ground.position.z = car.position.z;
+
+        dirLight.position.set(car.position.x + 50, 90, car.position.z + 40);
+        dirLight.target.position.copy(car.position);
+
+        cityTiles.forEach(tileObj => {
+            let dx = tileObj.gx - currentTileX;
+            let dz = tileObj.gz - currentTileZ;
+
+            if (dx > GRID_RADIUS) tileObj.gx -= (GRID_RADIUS * 2 + 1);
+            if (dx < -GRID_RADIUS) tileObj.gx += (GRID_RADIUS * 2 + 1);
+            if (dz > GRID_RADIUS) tileObj.gz -= (GRID_RADIUS * 2 + 1);
+            if (dz < -GRID_RADIUS) tileObj.gz += (GRID_RADIUS * 2 + 1);
+
+            tileObj.mesh.position.set(tileObj.gx * TILE_SIZE, 0, tileObj.gz * TILE_SIZE);
+        });
+    }
+
+    // تحديث حركة المشاة على الأرصفة وتناوب إشارات المرور
+    let elapsedTime = 0;
+    function updateWorldAnimations() {
+        elapsedTime += 0.016;
+
+        // تناوب إشارات المرور كل 6 ثوانٍ
+        const greenPhase = Math.floor(elapsedTime / 6) % 2 === 0;
+        trafficLightGroups.forEach(unit => {
+            unit.bulbs.forEach(b => {
+                b.rBulb.material = greenPhase ? unit.redOffMat : unit.redMat;
+                b.gBulb.material = greenPhase ? unit.greenMat : unit.greenOffMat;
+            });
+        });
+
+        // حركة المشاة ذهاباً وإياباً على الأرصفة
+        pedestrians.forEach(p => {
+            const offset = Math.sin(elapsedTime * p.speed * 45 + p.phase) * p.range;
+            const stepTilt = Math.sin(elapsedTime * 8 + p.phase) * 0.06;
+
+            if (p.alongAxis) {
+                p.mesh.position.x = p.baseX + offset;
+                p.mesh.rotation.y = Math.cos(elapsedTime * p.speed * 45 + p.phase) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+            } else {
+                p.mesh.position.z = p.baseZ + offset;
+                p.mesh.rotation.y = Math.cos(elapsedTime * p.speed * 45 + p.phase) >= 0 ? 0 : Math.PI;
+            }
+            p.mesh.rotation.z = stepTilt;
+        });
+    }
 
     const speedDisplay = document.getElementById('speed-val');
     const steerDisplay = document.getElementById('steer-indicator');
@@ -628,6 +778,9 @@
             if (speed < 0) speed = Math.min(0, speed + friction);
         }
 
+        const isReversing = speed < -0.02;
+        reverseLightMat.emissiveIntensity = isReversing ? 2.5 : 0.0;
+
         if (keys.brake) {
             if (speed > 0) speed = Math.max(0, speed - brakeForce);
             if (speed < 0) speed = Math.min(0, speed + brakeForce);
@@ -636,12 +789,11 @@
             tailLightMat.emissiveIntensity = lightsOn ? 1.5 : 0.2;
         }
 
-        // حساب زاوية الانحناء يميناً ويساراً
+        // الانحناء يميناً ويساراً
         const steerInput = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
         const maxSteerAngle = 0.52;
         steeringAngle += (steerInput * maxSteerAngle - steeringAngle) * 0.16;
 
-        // مؤشر اتجاه المقود في الواجهة
         if (Math.abs(steeringAngle) < 0.03) {
             steerDisplay.textContent = 'المقود: مستقيم';
         } else if (steeringAngle > 0) {
@@ -650,12 +802,10 @@
             steerDisplay.textContent = 'المقود: انحناء لليمين ↗';
         }
 
-        // تدوير العجلات الأمامية
         frontWheelPivots.forEach(pivot => {
             pivot.rotation.y = steeringAngle;
         });
 
-        // تطبيق الانحناء والحركة حتى عند السرعات المنخفضة
         const speedFactor = Math.min(1, Math.abs(speed) / 0.25);
         const driftMultiplier = keys.brake ? 1.45 : 1.0;
 
@@ -671,14 +821,16 @@
             });
         }
 
-        // ميلان خفيف لهيكل السيارة عند الانحناء لإبراز الإحساس بالمنعطف
         const targetRoll = -steeringAngle * 0.14 * Math.min(1, Math.abs(speed) / 0.6);
         bodyRoll += (targetRoll - bodyRoll) * 0.15;
         carBodyGroup.rotation.z = bodyRoll;
 
         speedDisplay.textContent = Math.round(Math.abs(speed) * 120);
 
-        // حركة الكاميرا مع السيارة
+        updateInfiniteCity();
+        updateWorldAnimations();
+
+        // الكاميرا
         let camOffset;
         if (cameraMode === 0) {
             camOffset = new THREE.Vector3(0, 2.8, -6.5);
