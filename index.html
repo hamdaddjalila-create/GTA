@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - Working Traffic Lights 3D</title>
+    <title>Clio 4 - Cafe, Hotel, Park & City 3D</title>
     <style>
         * {
             margin: 0;
@@ -52,17 +52,23 @@
             color: #94a3b8;
             margin-top: 2px;
         }
-        #collision-status {
+        #district-status {
             font-size: 0.78rem;
-            color: #f87171;
+            color: #38bdf8;
             margin-top: 6px;
-            min-height: 18px;
             font-weight: bold;
         }
         #signal-status {
             font-size: 0.78rem;
             color: #4ade80;
             margin-top: 4px;
+            font-weight: bold;
+        }
+        #collision-status {
+            font-size: 0.78rem;
+            color: #f87171;
+            margin-top: 4px;
+            min-height: 18px;
             font-weight: bold;
         }
         .speedometer {
@@ -158,8 +164,9 @@
 <div id="hud">
     <div class="panel">
         <div class="car-title">Renault Clio IV — Endless US City</div>
-        <div class="car-sub">إشارات مرور عاملة، تصادم، مدينة لا تنتهي، ومشاة</div>
-        <div id="signal-status">إشارة التقاطع: متزامنة</div>
+        <div class="car-sub">مقهى، فندق، حديقة، مكاتب، إشارات مرور، وتصادم</div>
+        <div id="district-status">الموقع الحالي: شوارع المدينة</div>
+        <div id="signal-status">إشارات المرور: نشطة في التقاطعات</div>
         <div id="collision-status">جاهز للقيادة</div>
         <div class="controls-bar">
             <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
@@ -247,6 +254,7 @@
     const buildingPalette = [0x243044, 0x2d3748, 0x1e293b, 0x334155, 0x293548];
     const trimMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.3 });
     const litWindowMat = new THREE.MeshBasicMaterial({ color: 0xfde68a });
+    const warmWindowMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
     const darkWindowMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2, metalness: 0.6 });
 
     const pedestrianShirts = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0xa855f7, 0xec4899];
@@ -262,6 +270,31 @@
     const pedestrians = [];
     const buildingWindows = [];
     const buildingBoxes = [];
+    const landmarks = []; // لتتبع أسماء المرافق (مقهى، فندق، حديقة، مكاتب)
+
+    // دالة مساعدة لإنشاء لوحة نصية ثلاثية الأبعاد عبر CanvasTexture
+    function createSignTexture(text, bgColor, textColor) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+
+        ctx.fillStyle = textColor;
+        ctx.font = 'bold 54px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+    }
 
     function createRoadStrip(length, rotY) {
         const strip = new THREE.Group();
@@ -313,53 +346,218 @@
         return strip;
     }
 
-    function createDetailedBuilding(w, h, d, colorHex, seed) {
-        const bGroup = new THREE.Group();
+    // 1. بناء مقهى (CAFÉ) بمظلة وطاولات خارجية ولافتة
+    function createCafeFacility(w, d) {
+        const group = new THREE.Group();
+        const h = 10;
 
         const body = new THREE.Mesh(
             new THREE.BoxGeometry(w, h, d),
-            new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.75, metalness: 0.15 })
+            new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.72 })
         );
         body.position.y = h / 2;
         body.castShadow = true;
         body.receiveShadow = true;
-        bGroup.add(body);
+        group.add(body);
 
-        const cornice = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.55, d + 0.7), trimMat);
-        cornice.position.y = h + 0.25;
-        cornice.castShadow = true;
-        bGroup.add(cornice);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.5, d + 0.8), trimMat);
+        roof.position.y = h + 0.25;
+        group.add(roof);
 
-        const basePlinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 1.4, d + 0.4), trimMat);
-        basePlinth.position.y = 0.7;
-        bGroup.add(basePlinth);
+        // مظلة أمامية للمقهى
+        const awning = new THREE.Mesh(
+            new THREE.BoxGeometry(w * 0.75, 0.25, 3.2),
+            new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 })
+        );
+        awning.position.set(0, 3.6, d / 2 + 1.5);
+        awning.rotation.x = 0.2;
+        group.add(awning);
 
-        const floors = Math.floor((h - 3.5) / 3.4);
-        const cols = Math.max(2, Math.floor((w - 4) / 3.6));
-        const winGeo = new THREE.PlaneGeometry(1.3, 1.65);
+        // نوافذ مضيئة دافئة
+        const winGeo = new THREE.PlaneGeometry(2.2, 2.0);
+        [-w * 0.25, w * 0.25].forEach(wx => {
+            const win = new THREE.Mesh(winGeo, warmWindowMat);
+            win.position.set(wx, 5.6, d / 2 + 0.04);
+            group.add(win);
+            buildingWindows.push({ mesh: win, isLit: true, warm: true });
+        });
 
+        // لافتة CAFÉ
+        const signTex = createSignTexture('CAFÉ', '#78350f', '#fef3c7');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(8.5, 2.0, 0.25),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(0, 8.6, d / 2 + 0.16);
+        group.add(signMesh);
+
+        // طاولات صغيرة أمام المقهى
+        const tableMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+        [-5, 0, 5].forEach(tx => {
+            const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.12, 16), tableMat);
+            tableTop.position.set(tx, 1.15, d / 2 + 3.2);
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.1, 10), poleMat);
+            leg.position.set(tx, 0.55, d / 2 + 3.2);
+            group.add(tableTop, leg);
+        });
+
+        return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
+    }
+
+    // 2. بناء فندق (HOTEL) متعدد الطوابق مع مدخل ولافتة
+    function createHotelFacility(w, d, seed) {
+        const group = new THREE.Group();
+        const h = 32;
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.55, metalness: 0.25 })
+        );
+        body.position.y = h / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const topCrown = new THREE.Mesh(new THREE.BoxGeometry(w + 1.0, 1.2, d + 1.0), trimMat);
+        topCrown.position.y = h + 0.6;
+        group.add(topCrown);
+
+        // مظلة مدخل الفندق
+        const canopy = new THREE.Mesh(
+            new THREE.BoxGeometry(9.0, 0.4, 4.0),
+            new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4 })
+        );
+        canopy.position.set(0, 3.8, d / 2 + 1.8);
+        group.add(canopy);
+
+        // لافتة HOTEL العلوية
+        const signTex = createSignTexture('HOTEL', '#1e3a8a', '#f8fafc');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(11.0, 2.5, 0.3),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(0, h - 2.4, d / 2 + 0.2);
+        group.add(signMesh);
+
+        // نوافذ الطوابق
+        const floors = 7;
+        const cols = 5;
+        const winGeo = new THREE.PlaneGeometry(1.5, 1.8);
         for (let f = 0; f < floors; f++) {
-            const wy = 2.8 + f * 3.4;
+            const wy = 6.2 + f * 3.3;
             for (let c = 0; c < cols; c++) {
-                const wx = -((cols - 1) * 3.2) / 2 + c * 3.2;
-                const isLit = ((seed * 13 + f * 7 + c * 5) % 4) !== 0;
-                const mat = isLit ? litWindowMat : darkWindowMat;
-
-                const frontWin = new THREE.Mesh(winGeo, mat);
-                frontWin.position.set(wx, wy, d / 2 + 0.04);
-                bGroup.add(frontWin);
-
-                const backWin = new THREE.Mesh(winGeo, mat);
-                backWin.position.set(wx, wy, -d / 2 - 0.04);
-                backWin.rotation.y = Math.PI;
-                bGroup.add(backWin);
-
-                buildingWindows.push({ mesh: frontWin, isLit });
-                buildingWindows.push({ mesh: backWin, isLit });
+                const wx = -((cols - 1) * 3.8) / 2 + c * 3.8;
+                const isLit = ((seed * 11 + f * 5 + c * 3) % 3) !== 0;
+                const win = new THREE.Mesh(winGeo, isLit ? litWindowMat : darkWindowMat);
+                win.position.set(wx, wy, d / 2 + 0.04);
+                group.add(win);
+                buildingWindows.push({ mesh: win, isLit, warm: false });
             }
         }
 
-        return bGroup;
+        return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
+    }
+
+    // 3. بناء حديقة (PARK) خضراء بأشجار وممر
+    function createParkFacility(w, d) {
+        const group = new THREE.Group();
+
+        const grassMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.9 });
+        const pathMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.8 });
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.85 });
+        const foliageMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.75 });
+
+        const lawn = new THREE.Mesh(new THREE.BoxGeometry(w, 0.35, d), grassMat);
+        lawn.position.y = 0.175;
+        lawn.receiveShadow = true;
+        group.add(lawn);
+
+        // ممر مشاة متقاطع داخل الحديقة
+        const pathNS = new THREE.Mesh(new THREE.PlaneGeometry(2.6, d - 2), pathMat);
+        pathNS.rotation.x = -Math.PI / 2;
+        pathNS.position.y = 0.36;
+        const pathEW = new THREE.Mesh(new THREE.PlaneGeometry(w - 2, 2.6), pathMat);
+        pathEW.rotation.x = -Math.PI / 2;
+        pathEW.position.y = 0.36;
+        group.add(pathNS, pathEW);
+
+        // لافتة PARK
+        const signTex = createSignTexture('PARK', '#14532d', '#dcfce7');
+        const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 3.2), poleMat);
+        signPost.position.set(0, 1.6, d / 2 - 1.5);
+        const signBoard = new THREE.Mesh(
+            new THREE.BoxGeometry(6.2, 1.5, 0.2),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signBoard.position.set(0, 3.2, d / 2 - 1.5);
+        group.add(signPost, signBoard);
+
+        // أشجار في زوايا الحديقة
+        const treeCoords = [
+            [-8, -8], [8, -8],
+            [-8, 8], [8, 8]
+        ];
+        treeCoords.forEach(([tx, tz]) => {
+            const tree = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 2.4, 10), trunkMat);
+            trunk.position.y = 1.2 + 0.35;
+            trunk.castShadow = true;
+
+            const crown = new THREE.Mesh(new THREE.SphereGeometry(2.1, 14, 14), foliageMat);
+            crown.position.y = 3.6 + 0.35;
+            crown.castShadow = true;
+
+            tree.add(trunk, crown);
+            tree.position.set(tx, 0, tz);
+            group.add(tree);
+        });
+
+        // الحديقة لا تمنع القيادة بنفس طريقة العمارة العالية، لكن نضع عائقاً خفيفاً للأشجار فقط
+        return { group, halfW: 0, halfD: 0 };
+    }
+
+    // 4. بناء مبنى مكاتب (OFFICE)
+    function createOfficeFacility(w, d, colorHex, seed) {
+        const group = new THREE.Group();
+        const h = 20;
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.65, metalness: 0.2 })
+        );
+        body.position.y = h / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const cornice = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.6, d + 0.7), trimMat);
+        cornice.position.y = h + 0.3;
+        group.add(cornice);
+
+        const signTex = createSignTexture('OFFICE', '#1e293b', '#38bdf8');
+        const signMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(8.5, 1.8, 0.25),
+            new THREE.MeshBasicMaterial({ map: signTex })
+        );
+        signMesh.position.set(0, h - 1.8, d / 2 + 0.16);
+        group.add(signMesh);
+
+        const floors = 4;
+        const cols = 5;
+        const winGeo = new THREE.PlaneGeometry(1.4, 1.7);
+        for (let f = 0; f < floors; f++) {
+            const wy = 4.2 + f * 3.5;
+            for (let c = 0; c < cols; c++) {
+                const wx = -((cols - 1) * 3.8) / 2 + c * 3.8;
+                const isLit = ((seed * 7 + f * 3 + c) % 4) !== 0;
+                const win = new THREE.Mesh(winGeo, isLit ? litWindowMat : darkWindowMat);
+                win.position.set(wx, wy, d / 2 + 0.04);
+                group.add(win);
+                buildingWindows.push({ mesh: win, isLit, warm: false });
+            }
+        }
+
+        return { group, halfW: w / 2 + 0.4, halfD: d / 2 + 0.4 };
     }
 
     function createPedestrian(shirtColor, pantsColor, skinColor) {
@@ -408,6 +606,7 @@
     function createCityTile(seedIndex) {
         const tile = new THREE.Group();
         const localBuildings = [];
+        const localLandmarks = [];
 
         tile.add(createRoadStrip(TILE_SIZE, 0));
         tile.add(createRoadStrip(TILE_SIZE, Math.PI / 2));
@@ -430,7 +629,6 @@
             tile.add(stripeNS1, stripeNS2, stripeEW1, stripeEW2);
         }
 
-        // إشارات مرور ثلاثية الألوان تعمل بدورة منظمة (أحمر، أصفر، أخضر)
         const redOnMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
         const yellowOnMat = new THREE.MeshBasicMaterial({ color: 0xffd000 });
         const greenOnMat = new THREE.MeshBasicMaterial({ color: 0x16ff6a });
@@ -473,31 +671,59 @@
         });
         trafficLightGroups.push(lightUnit);
 
+        // توزيع مرافق متنوعة في الأرباع الأربعة: مقهى، فندق، حديقة، ومبنى مكاتب
         const quadOffsets = [
             [-36, -36], [36, -36],
             [-36, 36], [36, 36]
         ];
-
-        const bWidth = 28;
-        const bDepth = 28;
+        const facilityTypes = ['CAFE', 'HOTEL', 'PARK', 'OFFICE'];
+        const facilityLabelsAr = {
+            CAFE: 'مقهى (CAFÉ)',
+            HOTEL: 'فندق (HOTEL)',
+            PARK: 'حديقة (PARK)',
+            OFFICE: 'مبنى مكاتب (OFFICE)'
+        };
 
         quadOffsets.forEach(([qx, qz], qIdx) => {
-            const h = 14 + Math.abs(Math.sin((seedIndex + 1) * 1.7 + qIdx)) * 24;
-            const colorHex = buildingPalette[(seedIndex + qIdx) % buildingPalette.length];
-            const building = createDetailedBuilding(bWidth, h, bDepth, colorHex, seedIndex * 7 + qIdx);
-            building.position.set(qx, 0, qz);
-            tile.add(building);
+            const type = facilityTypes[(seedIndex + qIdx) % facilityTypes.length];
+            let built;
 
-            const colliderRecord = {
+            if (type === 'CAFE') {
+                built = createCafeFacility(24, 24);
+            } else if (type === 'HOTEL') {
+                built = createHotelFacility(28, 28, seedIndex * 7 + qIdx);
+            } else if (type === 'PARK') {
+                built = createParkFacility(28, 28);
+            } else {
+                const colorHex = buildingPalette[(seedIndex + qIdx) % buildingPalette.length];
+                built = createOfficeFacility(28, 28, colorHex, seedIndex * 5 + qIdx);
+            }
+
+            built.group.position.set(qx, 0, qz);
+            tile.add(built.group);
+
+            if (built.halfW > 0 && built.halfD > 0) {
+                const colliderRecord = {
+                    localX: qx,
+                    localZ: qz,
+                    halfW: built.halfW,
+                    halfD: built.halfD,
+                    worldX: qx,
+                    worldZ: qz
+                };
+                buildingBoxes.push(colliderRecord);
+                localBuildings.push(colliderRecord);
+            }
+
+            const lmRecord = {
                 localX: qx,
                 localZ: qz,
-                halfW: bWidth / 2 + 0.4,
-                halfD: bDepth / 2 + 0.4,
                 worldX: qx,
-                worldZ: qz
+                worldZ: qz,
+                label: facilityLabelsAr[type]
             };
-            buildingBoxes.push(colliderRecord);
-            localBuildings.push(colliderRecord);
+            landmarks.push(lmRecord);
+            localLandmarks.push(lmRecord);
 
             const lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 6.6), poleMat);
             const lampX = qx + (qx < 0 ? 26.5 : -26.5);
@@ -541,7 +767,7 @@
         }
 
         scene.add(tile);
-        return { mesh: tile, localBuildings };
+        return { mesh: tile, localBuildings, localLandmarks };
     }
 
     let tileCounter = 0;
@@ -555,7 +781,17 @@
                 b.worldX = tx + b.localX;
                 b.worldZ = tz + b.localZ;
             });
-            cityTiles.push({ mesh: created.mesh, localBuildings: created.localBuildings, gx, gz });
+            created.localLandmarks.forEach(l => {
+                l.worldX = tx + l.localX;
+                l.worldZ = tz + l.localZ;
+            });
+            cityTiles.push({
+                mesh: created.mesh,
+                localBuildings: created.localBuildings,
+                localLandmarks: created.localLandmarks,
+                gx,
+                gz
+            });
         }
     }
 
@@ -808,6 +1044,7 @@
 
     const collisionStatusEl = document.getElementById('collision-status');
     const signalStatusEl = document.getElementById('signal-status');
+    const districtStatusEl = document.getElementById('district-status');
 
     function notifyCollision(label) {
         collisionCount++;
@@ -882,7 +1119,11 @@
             ground.material.color.setHex(0x0b101b);
             asphaltMat.color.setHex(0x1e2430);
             buildingWindows.forEach(w => {
-                w.mesh.material = w.isLit ? litWindowMat : darkWindowMat;
+                if (w.warm) {
+                    w.mesh.material = warmWindowMat;
+                } else {
+                    w.mesh.material = w.isLit ? litWindowMat : darkWindowMat;
+                }
             });
             btn.textContent = 'الوضع: ليلي';
             btn.classList.remove('active');
@@ -931,7 +1172,25 @@
                 b.worldX = tx + b.localX;
                 b.worldZ = tz + b.localZ;
             });
+
+            tileObj.localLandmarks.forEach(l => {
+                l.worldX = tx + l.localX;
+                l.worldZ = tz + l.localZ;
+            });
         });
+
+        // تحديد أقرب مرفق من السيارة
+        let nearestLabel = 'شوارع المدينة';
+        let bestDist = 42;
+        for (let i = 0; i < landmarks.length; i++) {
+            const lm = landmarks[i];
+            const d = Math.hypot(car.position.x - lm.worldX, car.position.z - lm.worldZ);
+            if (d < bestDist) {
+                bestDist = d;
+                nearestLabel = lm.label;
+            }
+        }
+        districtStatusEl.textContent = `بالقرب من: ${nearestLabel}`;
     }
 
     function checkCollisions() {
@@ -956,7 +1215,7 @@
                 car.position.z += nz * (overlap + 0.05);
 
                 if (Math.abs(speed) > 0.12) {
-                    notifyCollision('عمارة');
+                    notifyCollision('مبنى');
                 }
                 speed = -speed * 0.25;
             }
@@ -1018,9 +1277,8 @@
             }
         }
 
-        // دورة إشارات المرور (كل 10 ثوانٍ: 5ث أخضر/أحمر، ثم 1.5ث أصفر، ثم 3.5ث عكس)
         const cycleSec = elapsedTime % 10;
-        let nsState = 'green'; // 'green' | 'yellow' | 'red'
+        let nsState = 'green';
         if (cycleSec < 5.0) {
             nsState = 'green';
         } else if (cycleSec < 6.5) {
@@ -1047,7 +1305,6 @@
             });
         });
 
-        // تحديث حالة الإشارة بالنسبة لاتجاه السيارة عند اقترابها من أقرب تقاطع
         const nearX = Math.round(car.position.x / TILE_SIZE) * TILE_SIZE;
         const nearZ = Math.round(car.position.z / TILE_SIZE) * TILE_SIZE;
         const distToCenter = Math.hypot(car.position.x - nearX, car.position.z - nearZ);
