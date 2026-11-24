@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clio 4 - Gas, Restaurant, Market & City 3D</title>
+    <title>Clio 4 - Realistic 3D City Simulator</title>
     <style>
         * {
             margin: 0;
@@ -35,7 +35,7 @@
             gap: 12px;
         }
         .panel {
-            background: rgba(15, 23, 42, 0.78);
+            background: rgba(15, 23, 42, 0.8);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.14);
             padding: 12px 16px;
@@ -73,7 +73,7 @@
         }
         .speedometer {
             text-align: center;
-            min-width: 124px;
+            min-width: 145px;
         }
         #speed-val {
             font-size: 1.95rem;
@@ -89,6 +89,31 @@
             font-size: 0.74rem;
             color: #fbbf24;
             margin-top: 4px;
+        }
+        .fuel-wrap {
+            margin-top: 8px;
+            text-align: right;
+        }
+        .fuel-label {
+            font-size: 0.72rem;
+            color: #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+        .fuel-bar-bg {
+            width: 100%;
+            height: 7px;
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        #fuel-bar-fill {
+            width: 100%;
+            height: 100%;
+            background: #22c55e;
+            transition: width 0.2s, background-color 0.2s;
         }
         .controls-bar {
             display: flex;
@@ -112,6 +137,10 @@
         button.action-btn.active {
             background: #0284c7;
             border-color: #38bdf8;
+        }
+        button.action-btn.refuel-ready {
+            background: #15803d;
+            border-color: #4ade80;
         }
         #instructions {
             position: absolute;
@@ -163,14 +192,16 @@
 
 <div id="hud">
     <div class="panel">
-        <div class="car-title">Renault Clio IV — Endless US City</div>
-        <div class="car-sub">محطة وقود، مطعم، سوبرماركت، مقهى، فندق، حديقة، ومكاتب</div>
+        <div class="car-title">Renault Clio IV — Realistic 3D City</div>
+        <div class="car-sub">التزام إشارات المرور، غمازات، وقود، صوت محرك، ومرافق متكاملة</div>
         <div id="district-status">بالقرب من: شوارع المدينة</div>
         <div id="signal-status">إشارات المرور: نشطة في التقاطعات</div>
         <div id="collision-status">جاهز للقيادة</div>
         <div class="controls-bar">
             <button class="action-btn active" id="btn-lights" onclick="toggleLights()">المصابيح: تشغيل</button>
             <button class="action-btn" id="btn-time" onclick="toggleDayNight()">الوضع: ليلي</button>
+            <button class="action-btn" id="btn-sound" onclick="toggleSound()">الصوت: إيقاف</button>
+            <button class="action-btn" id="btn-refuel" onclick="refuelCar()">تعبئة الوقود</button>
             <button class="action-btn" id="btn-cam" onclick="switchCamera()">الكاميرا</button>
             <button class="action-btn" onclick="resetCar()">إعادة الضبط</button>
         </div>
@@ -180,11 +211,20 @@
         <div id="speed-val">0</div>
         <div class="speed-unit">كم / ساعة</div>
         <div id="steer-indicator">المقود: مستقيم</div>
+        <div class="fuel-wrap">
+            <div class="fuel-label">
+                <span>الوقود</span>
+                <span id="fuel-pct">100%</span>
+            </div>
+            <div class="fuel-bar-bg">
+                <div id="fuel-bar-fill"></div>
+            </div>
+        </div>
     </div>
 </div>
 
 <div id="instructions" class="panel">
-    التحكم: الأسهم أو <b>W A S D</b> للقيادة والانحناء | <b>Space</b> للانجراف/الفرامل | <b>L</b> للمصابيح | <b>C</b> للكاميرا
+    التحكم: الأسهم أو <b>W A S D</b> للقيادة والانحناء | <b>Space</b> للفرامل/الانجراف | <b>L</b> للمصابيح | <b>M</b> للصوت | <b>R</b> للتعبئة قرب المحطة | <b>C</b> للكاميرا
 </div>
 
 <div id="mobile-controls">
@@ -201,6 +241,60 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
+    // 0. نظام الصوت المدمج (Web Audio API)
+    let audioCtx = null;
+    let engineOsc = null;
+    let engineGain = null;
+    let soundEnabled = false;
+
+    function initAudio() {
+        if (audioCtx) return;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        audioCtx = new AudioContextClass();
+        engineOsc = audioCtx.createOscillator();
+        engineGain = audioCtx.createGain();
+        engineOsc.type = 'sawtooth';
+        engineOsc.frequency.value = 55;
+        engineGain.gain.value = 0.0;
+        engineOsc.connect(engineGain);
+        engineGain.connect(audioCtx.destination);
+        engineOsc.start();
+    }
+
+    function playCrashSound(intensity = 1) {
+        if (!soundEnabled || !audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(36, now + 0.22);
+
+        gain.gain.setValueAtTime(Math.min(0.28, 0.14 * intensity), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+    }
+
+    function toggleSound() {
+        initAudio();
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        soundEnabled = !soundEnabled;
+        if (engineGain) {
+            engineGain.gain.setTargetAtTime(soundEnabled ? 0.035 : 0.0, audioCtx.currentTime, 0.05);
+        }
+        const btn = document.getElementById('btn-sound');
+        btn.textContent = soundEnabled ? 'الصوت: تشغيل' : 'الصوت: إيقاف';
+        btn.classList.toggle('active', soundEnabled);
+    }
+
     // 1. إعداد المشهد والكاميرا والمصيّر
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
@@ -236,6 +330,31 @@
     dirLight.shadow.camera.bottom = -shadowBound;
     scene.add(dirLight, dirLight.target);
 
+    // خامة أسفلت إجرائية بحبيبات خفيفة
+    function createAsphaltTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#242b38';
+        ctx.fillRect(0, 0, 256, 256);
+
+        for (let i = 0; i < 4500; i++) {
+            const x = Math.random() * 256;
+            const y = Math.random() * 256;
+            const v = 25 + Math.floor(Math.random() * 28);
+            ctx.fillStyle = `rgb(${v},${v + 4},${v + 10})`;
+            ctx.fillRect(x, y, 2, 2);
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(3, 24);
+        return tex;
+    }
+
+    const asphaltTex = createAsphaltTexture();
+
     // 3. الأرضية والمدينة اللانهائية
     const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(2400, 2400),
@@ -247,7 +366,7 @@
 
     const yellowLineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
     const whiteLineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
-    const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.78 });
+    const asphaltMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.82 });
     const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
     const lampBulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
@@ -345,7 +464,6 @@
         return strip;
     }
 
-    // 1. مقهى (CAFÉ)
     function createCafeFacility(w, d) {
         const group = new THREE.Group();
         const h = 10;
@@ -399,7 +517,6 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 2. فندق (HOTEL)
     function createHotelFacility(w, d, seed) {
         const group = new THREE.Group();
         const h = 32;
@@ -450,7 +567,6 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 3. حديقة (PARK)
     function createParkFacility(w, d) {
         const group = new THREE.Group();
 
@@ -504,11 +620,9 @@
         return { group, halfW: 0, halfD: 0 };
     }
 
-    // 4. محطة وقود (GAS STATION) بمظلة ومضخات
     function createGasStationFacility(w, d) {
         const group = new THREE.Group();
 
-        // أرضية المحطة ومبنى صغير جانبي
         const pad = new THREE.Mesh(
             new THREE.BoxGeometry(w, 0.25, d),
             new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 })
@@ -530,7 +644,6 @@
         group.add(shopWin);
         buildingWindows.push({ mesh: shopWin, isLit: true, warm: true });
 
-        // مظلة المحطة العلوية
         const canopyRoof = new THREE.Mesh(
             new THREE.BoxGeometry(16, 0.7, 12),
             new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.45 })
@@ -546,7 +659,6 @@
             group.add(pillar);
         });
 
-        // مضخات الوقود
         const pumpMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
         [-1, 3, 7].forEach(mx => {
             const pump = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.0, 0.8), pumpMat);
@@ -566,7 +678,6 @@
         return { group, halfW: w / 2 + 0.4, halfD: d / 2 + 0.4 };
     }
 
-    // 5. مطعم (RESTAURANT)
     function createRestaurantFacility(w, d) {
         const group = new THREE.Group();
         const h = 12;
@@ -603,7 +714,6 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 6. سوبرماركت (MARKET)
     function createMarketFacility(w, d, seed) {
         const group = new THREE.Group();
         const h = 13;
@@ -641,7 +751,6 @@
         return { group, halfW: w / 2 + 0.5, halfD: d / 2 + 0.5 };
     }
 
-    // 7. مبنى مكاتب (OFFICE)
     function createOfficeFacility(w, d, colorHex, seed) {
         const group = new THREE.Group();
         const h = 20;
@@ -853,6 +962,7 @@
                 localZ: qz,
                 worldX: qx,
                 worldZ: qz,
+                type,
                 label: facilityLabelsAr[type]
             };
             landmarks.push(lmRecord);
@@ -928,7 +1038,7 @@
         }
     }
 
-    // 4. سيارة اللاعب Renault Clio 4 البيضاء
+    // 4. سيارة اللاعب Renault Clio 4 البيضاء مع غمازات الانعطاف
     const car = new THREE.Group();
     const carBodyGroup = new THREE.Group();
     car.add(carBodyGroup);
@@ -954,6 +1064,8 @@
     const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0x991b1b, emissiveIntensity: 1.5 });
     const reverseLightMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 0.0 });
     const headLightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe0f2fe, emissiveIntensity: 2.0 });
+    const blinkerOffMat = new THREE.MeshBasicMaterial({ color: 0x422006 });
+    const blinkerOnMat = new THREE.MeshBasicMaterial({ color: 0xff9f0a });
 
     const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.58, 4.06), whitePaint);
     lowerBody.position.set(0, 0.58, 0);
@@ -1018,6 +1130,14 @@
     const rightMirror = leftMirror.clone();
     rightMirror.position.x = -0.98;
     carBodyGroup.add(leftMirror, rightMirror);
+
+    // غمازات الانعطاف (يسار ويمين)
+    const blinkerGeo = new THREE.BoxGeometry(0.16, 0.09, 0.11);
+    const blinkLeft = new THREE.Mesh(blinkerGeo, blinkerOffMat);
+    blinkLeft.position.set(0.84, 0.66, 2.02);
+    const blinkRight = new THREE.Mesh(blinkerGeo, blinkerOffMat);
+    blinkRight.position.set(-0.84, 0.66, 2.02);
+    carBodyGroup.add(blinkLeft, blinkRight);
 
     const headLightGeo = new THREE.BoxGeometry(0.38, 0.14, 0.1);
     const hlLeft = new THREE.Mesh(headLightGeo, headLightMat);
@@ -1086,7 +1206,7 @@
 
     scene.add(car);
 
-    // 5. سيارات أخرى تسير في الطريق
+    // 5. سيارات أخرى تسير وتلتزم بإشارات المرور
     const trafficColors = [0xef4444, 0x2563eb, 0x10b981, 0xf59e0b, 0x64748b, 0xe11d48, 0x0ea5e9];
     const trafficCars = [];
 
@@ -1126,7 +1246,7 @@
         createWheel(-0.85, 0.34, -1.25, false, tGroup, tWheels);
 
         scene.add(tGroup);
-        return { mesh: tGroup, wheels: tWheels, bumpX: 0, bumpZ: 0 };
+        return { mesh: tGroup, wheels: tWheels, bumpX: 0, bumpZ: 0, currentSpeed: 0 };
     }
 
     function spawnTrafficCar(tCar, idx) {
@@ -1148,7 +1268,8 @@
             tCar.axis = 'x';
         }
         tCar.dir = dir;
-        tCar.speed = 0.36 + (idx % 3) * 0.08;
+        tCar.maxTrafficSpeed = 0.36 + (idx % 3) * 0.08;
+        tCar.currentSpeed = tCar.maxTrafficSpeed;
         tCar.bumpX = 0;
         tCar.bumpZ = 0;
     }
@@ -1159,11 +1280,13 @@
         trafficCars.push(tCar);
     }
 
-    // 6. التحكم والفيزياء والتصادم
+    // 6. التحكم والفيزياء والوقود والتصادم
     const keys = { up: false, down: false, left: false, right: false, brake: false };
     let speed = 0;
     let steeringAngle = 0;
     let bodyRoll = 0;
+    let fuel = 100;
+    let nearGasStation = false;
     const maxSpeed = 1.5;
     const maxReverse = -0.52;
     const accel = 0.024;
@@ -1178,11 +1301,41 @@
     const collisionStatusEl = document.getElementById('collision-status');
     const signalStatusEl = document.getElementById('signal-status');
     const districtStatusEl = document.getElementById('district-status');
+    const fuelPctEl = document.getElementById('fuel-pct');
+    const fuelBarEl = document.getElementById('fuel-bar-fill');
+    const refuelBtnEl = document.getElementById('btn-refuel');
 
     function notifyCollision(label) {
         collisionCount++;
         collisionStatusEl.textContent = `تصادم مع ${label} (المجموع: ${collisionCount})`;
         statusTimeout = 110;
+        playCrashSound(Math.min(1.5, Math.abs(speed) + 0.4));
+    }
+
+    function refuelCar() {
+        if (!nearGasStation && fuel > 25) {
+            collisionStatusEl.textContent = 'اقترب من محطة وقود (GAS STATION) للتعبئة';
+            statusTimeout = 90;
+            return;
+        }
+        fuel = 100;
+        updateFuelUI();
+        collisionStatusEl.textContent = 'تمت تعبئة الوقود بنسبة 100%';
+        statusTimeout = 90;
+    }
+
+    function updateFuelUI() {
+        const pct = Math.max(0, Math.round(fuel));
+        fuelPctEl.textContent = `${pct}%`;
+        fuelBarEl.style.width = `${pct}%`;
+        if (pct > 35) {
+            fuelBarEl.style.backgroundColor = '#22c55e';
+        } else if (pct > 15) {
+            fuelBarEl.style.backgroundColor = '#f59e0b';
+        } else {
+            fuelBarEl.style.backgroundColor = '#ef4444';
+        }
+        refuelBtnEl.classList.toggle('refuel-ready', nearGasStation);
     }
 
     window.addEventListener('keydown', (e) => {
@@ -1193,6 +1346,8 @@
         if (k === 'arrowright' || k === 'd') keys.right = true;
         if (e.code === 'Space') keys.brake = true;
         if (k === 'l') toggleLights();
+        if (k === 'm') toggleSound();
+        if (k === 'r') refuelCar();
         if (k === 'c') switchCamera();
     });
 
@@ -1236,7 +1391,6 @@
             dirLight.color.setHex(0xfffbeb);
             dirLight.intensity = 1.4;
             ground.material.color.setHex(0x475569);
-            asphaltMat.color.setHex(0x27303f);
             buildingWindows.forEach(w => {
                 w.mesh.material = darkWindowMat;
             });
@@ -1250,7 +1404,6 @@
             dirLight.color.setHex(0xe2e8f0);
             dirLight.intensity = 0.95;
             ground.material.color.setHex(0x0b101b);
-            asphaltMat.color.setHex(0x1e2430);
             buildingWindows.forEach(w => {
                 if (w.warm) {
                     w.mesh.material = warmWindowMat;
@@ -1274,9 +1427,14 @@
         speed = 0;
         steeringAngle = 0;
         bodyRoll = 0;
+        if (fuel <= 1) {
+            fuel = 60;
+            updateFuelUI();
+        }
     }
 
     resetCar();
+    updateFuelUI();
 
     function updateInfiniteCity() {
         const currentTileX = Math.round(car.position.x / TILE_SIZE);
@@ -1314,6 +1472,8 @@
 
         let nearestLabel = 'شوارع المدينة';
         let bestDist = 42;
+        nearGasStation = false;
+
         for (let i = 0; i < landmarks.length; i++) {
             const lm = landmarks[i];
             const d = Math.hypot(car.position.x - lm.worldX, car.position.z - lm.worldZ);
@@ -1321,8 +1481,14 @@
                 bestDist = d;
                 nearestLabel = lm.label;
             }
+            if (lm.type === 'GAS' && d < 26) {
+                nearGasStation = true;
+            }
         }
-        districtStatusEl.textContent = `بالقرب من: ${nearestLabel}`;
+        districtStatusEl.textContent = nearGasStation
+            ? 'بالقرب من: محطة وقود (اضغط R للتعبئة)'
+            : `بالقرب من: ${nearestLabel}`;
+        refuelBtnEl.classList.toggle('refuel-ready', nearGasStation);
     }
 
     function checkCollisions() {
@@ -1459,6 +1625,19 @@
             signalStatusEl.style.color = '#94a3b8';
         }
 
+        // وميض الغمازات حسب زاوية المقود
+        const blinkPulse = Math.floor(elapsedTime * 6) % 2 === 0;
+        if (steeringAngle > 0.1) {
+            blinkLeft.material = blinkPulse ? blinkerOnMat : blinkerOffMat;
+            blinkRight.material = blinkerOffMat;
+        } else if (steeringAngle < -0.1) {
+            blinkRight.material = blinkPulse ? blinkerOnMat : blinkerOffMat;
+            blinkLeft.material = blinkerOffMat;
+        } else {
+            blinkLeft.material = blinkerOffMat;
+            blinkRight.material = blinkerOffMat;
+        }
+
         pedestrians.forEach(p => {
             if (p.hitTimer > 0) {
                 p.hitTimer--;
@@ -1495,11 +1674,31 @@
             p.rightArm.rotation.x = limbSwing * 0.75;
         });
 
+        // حركة سيارات المرور مع الالتزام بإشارة التقاطع
         trafficCars.forEach((tCar, idx) => {
+            const tTileX = Math.round(tCar.mesh.position.x / TILE_SIZE) * TILE_SIZE;
+            const tTileZ = Math.round(tCar.mesh.position.z / TILE_SIZE) * TILE_SIZE;
+
+            let shouldStop = false;
             if (tCar.axis === 'z') {
-                tCar.mesh.position.z += tCar.dir * tCar.speed;
+                const distToStopLine = (tTileZ - 12.5 * tCar.dir - tCar.mesh.position.z) * tCar.dir;
+                if (distToStopLine > 0 && distToStopLine < 14 && nsState !== 'green') {
+                    shouldStop = true;
+                }
             } else {
-                tCar.mesh.position.x += tCar.dir * tCar.speed;
+                const distToStopLine = (tTileX - 12.5 * tCar.dir - tCar.mesh.position.x) * tCar.dir;
+                if (distToStopLine > 0 && distToStopLine < 14 && ewState !== 'green') {
+                    shouldStop = true;
+                }
+            }
+
+            const targetSpeed = shouldStop ? 0 : tCar.maxTrafficSpeed;
+            tCar.currentSpeed += (targetSpeed - tCar.currentSpeed) * 0.12;
+
+            if (tCar.axis === 'z') {
+                tCar.mesh.position.z += tCar.dir * tCar.currentSpeed;
+            } else {
+                tCar.mesh.position.x += tCar.dir * tCar.currentSpeed;
             }
 
             tCar.mesh.position.x += tCar.bumpX;
@@ -1508,7 +1707,7 @@
             tCar.bumpZ *= 0.85;
 
             tCar.wheels.forEach(w => {
-                w.rotation.x += tCar.speed * 2.8;
+                w.rotation.x += tCar.currentSpeed * 2.8;
             });
 
             const dist = tCar.mesh.position.distanceTo(car.position);
@@ -1524,13 +1723,20 @@
     function animate() {
         requestAnimationFrame(animate);
 
-        if (keys.up) {
+        const hasFuel = fuel > 0.05;
+
+        if (keys.up && hasFuel) {
             speed = Math.min(speed + accel, maxSpeed);
-        } else if (keys.down) {
+        } else if (keys.down && hasFuel) {
             speed = Math.max(speed - accel, maxReverse);
         } else {
             if (speed > 0) speed = Math.max(0, speed - friction);
             if (speed < 0) speed = Math.min(0, speed + friction);
+        }
+
+        if (Math.abs(speed) > 0.02 && fuel > 0) {
+            fuel = Math.max(0, fuel - Math.abs(speed) * 0.008);
+            updateFuelUI();
         }
 
         const isReversing = speed < -0.02;
@@ -1581,7 +1787,13 @@
 
         checkCollisions();
 
-        speedDisplay.textContent = Math.round(Math.abs(speed) * 120);
+        const kmh = Math.round(Math.abs(speed) * 120);
+        speedDisplay.textContent = kmh;
+
+        if (soundEnabled && engineOsc && audioCtx) {
+            const targetFreq = 52 + kmh * 1.15;
+            engineOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.08);
+        }
 
         updateInfiniteCity();
         updateWorldAnimations();
@@ -1616,4 +1828,3 @@
 
 </body>
 </html>
-
